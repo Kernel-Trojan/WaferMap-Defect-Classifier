@@ -1,22 +1,56 @@
+from __future__ import annotations
 import pickle
 from pathlib import Path
+from typing import Any
 
-DATA_PATH = Path(__file__).parents[1] / "data" / "LSWMD.pkl"
+DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "LSWMD.pkl"
 
-# We are renaming the module as pandas.indexes Module is deprecated and we can't use it in modern python. 
-# It forces us to use python2 but using python2 will cause conflicts with other packages.
-class RenamingUnpickler(pickle.Unpickler):
-    def find_class(self, module, name):
+
+class LegacyPandasUnpickler(pickle.Unpickler):
+    def find_class(self, module: str, name: str) -> Any:
         if module.startswith("pandas.indexes"):
             module = module.replace("pandas.indexes", "pandas.core.indexes", 1)
         return super().find_class(module, name)
 
+
 _cache = None
 
-# This function will be called to get data.
-def load_data():
+
+def load_data(path: str | Path | None = None, *, use_cache: bool = True):
     global _cache
-    if _cache is None:
-        with open(DATA_PATH, "rb") as f:
-            _cache = RenamingUnpickler(f, encoding="latin1").load()
-    return _cache
+    source = Path(path) if path is not None else DATA_PATH
+    if not source.is_file():
+        raise FileNotFoundError(
+            f"WM-811K dataset not found at {source}. Place LSWMD.pkl in data/ "
+            "or pass its path to load_data()."
+        )
+    if path is None and use_cache and _cache is not None:
+        return _cache
+    with source.open("rb") as stream:
+        frame = LegacyPandasUnpickler(stream, encoding="latin1").load()
+    if path is None and use_cache:
+        _cache = frame
+    return frame
+
+
+def first_label(value: Any) -> str | None:
+    if value is None:
+        return None
+    try:
+        if len(value) == 0:
+            return None
+        item = value[0]
+        while isinstance(item, (list, tuple)) or hasattr(item, "ndim") and getattr(item, "ndim", 0) > 0:
+            if len(item) == 0:
+                return None
+            item = item[0]
+        if item is None:
+            return None
+        try:
+            if item != item:
+                return None
+        except (TypeError, ValueError):
+            pass
+        return str(item)
+    except (TypeError, IndexError, KeyError):
+        return None
