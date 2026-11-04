@@ -1,0 +1,100 @@
+{
+  "seed": 42,
+  "group_definition": "connected components of lotName and exact waferMap hash",
+  "rows": 35519,
+  "groups": 10119,
+  "test_rows": 7236,
+  "test_fraction": 0.20372195163152115,
+  "test_lots": 2051,
+  "train_rows": 28283,
+  "train_lots": 8176,
+  "folds": {
+    "0": {
+      "validation_rows": 5657,
+      "validation_lots": 1638,
+      "class_counts": {
+        "none": 1607,
+        "Edge-Ring": 1517,
+        "Edge-Loc": 811,
+        "Center": 705,
+        "Loc": 575,
+        "Scratch": 193,
+        "Random": 132,
+        "Donut": 93,
+        "Near-full": 24
+      }
+    },
+    "1": {
+      "validation_rows": 5657,
+      "validation_lots": 1641,
+      "class_counts": {
+        "none": 1607,
+        "Edge-Ring": 1518,
+        "Edge-Loc": 811,
+        "Center": 704,
+        "Loc": 575,
+        "Scratch": 194,
+        "Random": 132,
+        "Donut": 92,
+        "Near-full": 24
+      }
+    },
+    "2": {
+      "validation_rows": 5657,
+      "validation_lots": 1635,
+      "class_counts": {
+        "none": 1607,
+        "Edge-Ring": 1517,
+        "Edge-Loc": 811,
+        "Center": 704,
+        "Loc": 574,
+        "Scratch": 194,
+        "Random": 132,
+        "Donut": 93,
+        "Near-full": 25
+      }
+    },
+    "3": {
+      "validation_rows": 5656,
+      "validation_lots": 1624,
+      "class_counts": {
+        "none": 1607,
+        "Edge-Ring": 1517,
+        "Edge-Loc": 810,
+        "Center": 705,
+        "Loc": 575,
+        "Scratch": 194,
+        "Random": 131,
+        "Donut": 92,
+        "Near-full": 25
+      }
+    },
+    "4": {
+      "validation_rows": 5656,
+      "validation_lots": 1638,
+      "class_counts": {
+        "none": 1606,
+        "Edge-Ring": 1518,
+        "Edge-Loc": 811,
+        "Center": 705,
+        "Loc": 574,
+        "Scratch": 193,
+        "Random": 131,
+        "Donut": 93,
+        "Near-full": 25
+      }
+    }
+  },
+  "test_class_counts": {
+    "Edge-Ring": 2093,
+    "none": 1966,
+    "Edge-Loc": 1135,
+    "Center": 771,
+    "Loc": 720,
+    "Scratch": 225,
+    "Random": 208,
+    "Donut": 92,
+    "Near-full": 26
+  },
+  "group_overlap_train_test": 0
+}

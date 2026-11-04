@@ -15,7 +15,7 @@ from src.data_loader import first_label, load_data
 
 ROOT = Path(__file__).resolve().parents[1]
 SEED = 42
-NONE_SAMPLE_SIZE = 10_000
+NONE_SAMPLE_SIZE = 10000
 EXPECTED_CLASSES = ["Center", "Donut", "Edge-Loc", "Edge-Ring", "Loc", "Near-full", "Random", "Scratch", "none"]
 
 

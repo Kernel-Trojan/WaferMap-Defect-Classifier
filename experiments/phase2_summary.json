@@ -1,0 +1,62 @@
+[
+  {
+    "experiment_id": "majority",
+    "macro_f1": 0.0491597139998715,
+    "weighted_f1": 0.12567769615934338,
+    "accuracy": 0.28405756107909347
+  },
+  {
+    "experiment_id": "uniform",
+    "macro_f1": 0.0873828869677624,
+    "weighted_f1": 0.1320520896018772,
+    "accuracy": 0.10974790510200474
+  },
+  {
+    "experiment_id": "failing-fraction",
+    "macro_f1": 0.2899669214838112,
+    "weighted_f1": 0.18872682361498003,
+    "accuracy": 0.18056783226673268
+  },
+  {
+    "experiment_id": "flat-logistic",
+    "macro_f1": 0.5791200400522813,
+    "weighted_f1": 0.6829880427475632,
+    "accuracy": 0.6683520135770604
+  },
+  {
+    "experiment_id": "flat-random-forest",
+    "macro_f1": 0.6949361375242362,
+    "weighted_f1": 0.76361430595591,
+    "accuracy": 0.7810345437188417
+  },
+  {
+    "experiment_id": "rotation-pixel-logistic",
+    "macro_f1": 0.3579352797194748,
+    "weighted_f1": 0.5547247131375763,
+    "accuracy": 0.6440971608386663
+  },
+  {
+    "experiment_id": "flat-logistic-random-split",
+    "macro_f1": 0.5891051523324626,
+    "weighted_f1": 0.687441941657381,
+    "accuracy": 0.6736555528055722
+  },
+  {
+    "experiment_id": "flat-random-forest-random-split",
+    "macro_f1": 0.7106120089235516,
+    "weighted_f1": 0.7725007828491852,
+    "accuracy": 0.7889544956334194
+  },
+  {
+    "experiment_id": "B2-flat-logistic-random-split",
+    "macro_f1": 0.5891051523324626,
+    "weighted_f1": 0.687441941657381,
+    "accuracy": 0.6736555528055722
+  },
+  {
+    "experiment_id": "B2-flat-random-forest-random-split",
+    "macro_f1": 0.7106120089235516,
+    "weighted_f1": 0.7725007828491852,
+    "accuracy": 0.7889544956334194
+  }
+]
