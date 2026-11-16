@@ -96,5 +96,51 @@
     "Donut": 92,
     "Near-full": 26
   },
-  "group_overlap_train_test": 0
+  "group_overlap_train_test": 0,
+  "group_sizes": {
+    "median": 2.0,
+    "max": 31,
+    "single_wafer_groups": 3722
+  },
+  "groups_joining_multiple_lots": 65,
+  "max_lots_in_one_group": 7,
+  "duplicate_maps": {
+    "rows_sharing_a_map": 215,
+    "distinct_maps": 107,
+    "maps_spanning_multiple_lots": 107,
+    "maps_split_across_train_test": 0,
+    "maps_with_conflicting_labels": 3,
+    "label_conflicts": [
+      {
+        "source_index": [
+          5954,
+          643483
+        ],
+        "labels": [
+          "Center",
+          "Loc"
+        ]
+      },
+      {
+        "source_index": [
+          6673,
+          645298
+        ],
+        "labels": [
+          "Edge-Loc",
+          "Edge-Ring"
+        ]
+      },
+      {
+        "source_index": [
+          6917,
+          642913
+        ],
+        "labels": [
+          "Edge-Loc",
+          "Edge-Ring"
+        ]
+      }
+    ]
+  }
 }

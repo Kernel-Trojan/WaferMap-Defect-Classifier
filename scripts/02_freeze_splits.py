@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
-import hashlib
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import GroupShuffleSplit, StratifiedGroupKFold, StratifiedKFold
+
+from src.data_loader import wafer_hash
 
 ROOT = Path(__file__).resolve().parents[1]
 SEED = 42
@@ -34,6 +35,43 @@ class UnionFind:
             self.rank[left] += 1
 
 
+def group_and_duplicate_stats(result: pd.DataFrame, digests: list[str]) -> dict:
+    """Describe the groups and duplicate maps so we can see the split is sane.
+
+    This only reads the finished split; it never changes who goes where.
+    - Group sizes: one huge group would make the 20% test cut lumpy.
+    - Duplicate maps: identical maps must sit on the same side, or the model
+      gets graded on wafers it has literally seen.
+    - Label conflicts: the same exact map with two different labels is label
+      noise that no model can get fully right.
+    """
+    frame = result.assign(hash=digests)
+    groups = frame.groupby("group_id")
+    sizes = groups.size()
+    lots_per_group = groups["lotName"].nunique()
+    duplicates = frame[frame["hash"].duplicated(keep=False)]
+    per_map = duplicates.groupby("hash").agg(lots=("lotName", "nunique"), labels=("label", "nunique"),
+                                             sides=("split", "nunique"))
+    conflicts = [
+        {"source_index": sorted(int(i) for i in rows["source_index"]), "labels": sorted(set(rows["label"]))}
+        for digest, rows in duplicates[duplicates["hash"].isin(per_map.index[per_map["labels"] > 1])].groupby("hash")
+    ]
+    return {
+        "group_sizes": {"median": float(sizes.median()), "max": int(sizes.max()),
+                        "single_wafer_groups": int((sizes == 1).sum())},
+        "groups_joining_multiple_lots": int((lots_per_group > 1).sum()),
+        "max_lots_in_one_group": int(lots_per_group.max()),
+        "duplicate_maps": {
+            "rows_sharing_a_map": int(len(duplicates)),
+            "distinct_maps": int(len(per_map)),
+            "maps_spanning_multiple_lots": int((per_map["lots"] > 1).sum()),
+            "maps_split_across_train_test": int((per_map["sides"] > 1).sum()),
+            "maps_with_conflicting_labels": len(conflicts),
+            "label_conflicts": sorted(conflicts, key=lambda c: c["source_index"]),
+        },
+    }
+
+
 def main():
     subset_path = ROOT / "data" / "project_subset.pkl"
     if not subset_path.exists():
@@ -45,12 +83,13 @@ def main():
     n = len(data)
     uf = UnionFind(n)
     first_by_lot, first_by_hash = {}, {}
+    digests = []
     for i, row in data.iterrows():
         lot = str(row["lotName"])
         previous = first_by_lot.setdefault(lot, i)
         uf.union(i, previous)
-        wafer = np.ascontiguousarray(np.asarray(row["waferMap"], dtype=np.int16))
-        digest = hashlib.sha1(repr(wafer.shape).encode("ascii") + wafer.tobytes()).hexdigest()
+        digest = wafer_hash(row["waferMap"])
+        digests.append(digest)
         previous = first_by_hash.setdefault(digest, i)
         uf.union(i, previous)
     groups = np.asarray([uf.find(i) for i in range(n)])
@@ -100,6 +139,7 @@ def main():
         "folds": {},
         "test_class_counts": {str(k): int(v) for k, v in result.loc[result.split == "test", "label"].value_counts().items()},
         "group_overlap_train_test": len(train_groups.intersection(test_groups)),
+        **group_and_duplicate_stats(result, digests),
     }
     for fold in range(5):
         validation = result.loc[result.fold == fold]
