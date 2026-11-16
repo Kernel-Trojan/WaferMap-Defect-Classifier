@@ -1,7 +1,10 @@
 from __future__ import annotations
+import hashlib
 import pickle
 from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "LSWMD.pkl"
 
@@ -31,6 +34,17 @@ def load_data(path: str | Path | None = None, *, use_cache: bool = True):
     if path is None and use_cache:
         _cache = frame
     return frame
+
+
+def wafer_hash(wafer_map: Any) -> str:
+    """Fingerprint of a wafer map: two maps get the same hash only if every die matches.
+
+    The shape goes into the hash too, so a 30x30 map and a 25x36 map with the same
+    900 values never collide. The split script and the split checker both use this,
+    so they always agree on what counts as a duplicate.
+    """
+    wafer = np.ascontiguousarray(np.asarray(wafer_map, dtype=np.int16))
+    return hashlib.sha1(repr(wafer.shape).encode("ascii") + wafer.tobytes()).hexdigest()
 
 
 def first_label(value: Any) -> str | None:

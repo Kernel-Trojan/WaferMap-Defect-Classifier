@@ -35,9 +35,30 @@ def map_hash(value):
         return None
 
 
+def check_builtin_split(frame, labels):
+    """Should we just use the train/test split that ships with WM-811K?
+
+    The column is really spelled "trianTestLabel" in the source data (typo included).
+    A usable split needs two things: no lot on both sides (or lot-mates leak
+    answers), and roughly the same class mix on both sides (or we train on one
+    kind of wafer and get graded on another). We measure both so the decision
+    to build our own split rests on numbers, not a guess.
+    """
+    builtin = frame["trianTestLabel"].map(first_label)
+    labeled = labels.notna()
+    lots = {side: set(frame.loc[labeled & builtin.eq(side), "lotName"]) for side in ("Training", "Test")}
+    share = pd.crosstab(labels[labeled], builtin[labeled], normalize="index")
+    return {
+        "rows": {str(k): int(v) for k, v in builtin[labeled].value_counts().items()},
+        "lots": {side: len(names) for side, names in lots.items()},
+        "lot_overlap": len(lots["Training"] & lots["Test"]),
+        "training_share_by_class": {str(k): round(float(v), 4) for k, v in share["Training"].sort_values().items()},
+    }
+
+
 def main():
     frame = load_data()
-    required = {"failureType", "waferMap", "dieSize", "lotName"}
+    required = {"failureType", "waferMap", "dieSize", "lotName", "trianTestLabel"}
     missing = required.difference(frame.columns)
     if missing:
         raise ValueError(f"Source dataset is missing columns: {sorted(missing)}")
@@ -52,6 +73,10 @@ def main():
     if observed != expected:
         raise ValueError(f"Source row totals differ from WM-811K expectations: {observed} != {expected}")
     class_counts = labels.value_counts(dropna=False).to_dict()
+    builtin_split = check_builtin_split(frame, labels)
+    print(f"Built-in trianTestLabel split: lot overlap = {builtin_split['lot_overlap']}; "
+          f"Training share ranges {min(builtin_split['training_share_by_class'].values()):.0%}"
+          f"-{max(builtin_split['training_share_by_class'].values()):.0%} across classes")
 
     defect = frame.loc[labels.notna() & labels.ne("none")].copy()
     none = frame.loc[labels.eq("none")].sample(n=NONE_SAMPLE_SIZE, random_state=SEED)
@@ -92,6 +117,7 @@ def main():
         "defect_rows": int((labels.notna() & labels.ne("none")).sum()),
         "none_rows": int((labels == "none").sum()),
         "class_counts": {str(k): int(v) for k, v in class_counts.items()},
+        "builtin_split_check": builtin_split,
         "subset_rows": int(len(subset)),
         "subset_class_counts": {str(k): int(v) for k, v in subset["label"].value_counts().items()},
         "unique_lots_by_class": {str(k): int(v) for k, v in lot_counts.items()},

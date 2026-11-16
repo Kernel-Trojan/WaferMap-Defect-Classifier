@@ -16,6 +16,28 @@
     "Donut": 555,
     "Near-full": 149
   },
+  "builtin_split_check": {
+    "rows": {
+      "Test": 118595,
+      "Training": 54355
+    },
+    "lots": {
+      "Training": 5809,
+      "Test": 4953
+    },
+    "lot_overlap": 0,
+    "training_share_by_class": {
+      "none": 0.2491,
+      "Near-full": 0.3624,
+      "Scratch": 0.4191,
+      "Loc": 0.4509,
+      "Edge-Loc": 0.4658,
+      "Random": 0.7032,
+      "Donut": 0.7369,
+      "Center": 0.8062,
+      "Edge-Ring": 0.8837
+    }
+  },
   "subset_rows": 35519,
   "subset_class_counts": {
     "none": 10000,

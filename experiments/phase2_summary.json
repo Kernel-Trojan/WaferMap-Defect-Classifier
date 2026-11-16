@@ -1,62 +1,66 @@
 [
   {
-    "experiment_id": "majority",
+    "experiment_id": "B0-majority",
+    "split": "lot_grouped_5fold",
     "macro_f1": 0.0491597139998715,
+    "macro_f1_fold_std": 7.946262679707179e-06,
     "weighted_f1": 0.12567769615934338,
     "accuracy": 0.28405756107909347
   },
   {
-    "experiment_id": "uniform",
+    "experiment_id": "B0-uniform",
+    "split": "lot_grouped_5fold",
     "macro_f1": 0.0873828869677624,
+    "macro_f1_fold_std": 0.0020851318155578687,
     "weighted_f1": 0.1320520896018772,
     "accuracy": 0.10974790510200474
   },
   {
-    "experiment_id": "failing-fraction",
-    "macro_f1": 0.2899669214838112,
-    "weighted_f1": 0.18872682361498003,
-    "accuracy": 0.18056783226673268
+    "experiment_id": "B1-failing-fraction",
+    "split": "lot_grouped_5fold",
+    "macro_f1": 0.2900468843192333,
+    "macro_f1_fold_std": 0.0063571583315484405,
+    "weighted_f1": 0.18888048583490585,
+    "accuracy": 0.18074461690768306
   },
   {
-    "experiment_id": "flat-logistic",
-    "macro_f1": 0.5791200400522813,
-    "weighted_f1": 0.6829880427475632,
-    "accuracy": 0.6683520135770604
+    "experiment_id": "B2-flat-logistic",
+    "split": "lot_grouped_5fold",
+    "macro_f1": 0.5788056765381506,
+    "macro_f1_fold_std": 0.014234187149194732,
+    "weighted_f1": 0.6831632824500258,
+    "accuracy": 0.6685641551462009
   },
   {
-    "experiment_id": "flat-random-forest",
-    "macro_f1": 0.6949361375242362,
-    "weighted_f1": 0.76361430595591,
-    "accuracy": 0.7810345437188417
-  },
-  {
-    "experiment_id": "rotation-pixel-logistic",
-    "macro_f1": 0.3579352797194748,
-    "weighted_f1": 0.5547247131375763,
-    "accuracy": 0.6440971608386663
-  },
-  {
-    "experiment_id": "flat-logistic-random-split",
-    "macro_f1": 0.5891051523324626,
-    "weighted_f1": 0.687441941657381,
-    "accuracy": 0.6736555528055722
-  },
-  {
-    "experiment_id": "flat-random-forest-random-split",
-    "macro_f1": 0.7106120089235516,
-    "weighted_f1": 0.7725007828491852,
-    "accuracy": 0.7889544956334194
+    "experiment_id": "B2-flat-random-forest",
+    "split": "lot_grouped_5fold",
+    "macro_f1": 0.695704935444769,
+    "macro_f1_fold_std": 0.01019060624172504,
+    "weighted_f1": 0.7646377662832609,
+    "accuracy": 0.7820245377081639
   },
   {
     "experiment_id": "B2-flat-logistic-random-split",
-    "macro_f1": 0.5891051523324626,
-    "weighted_f1": 0.687441941657381,
-    "accuracy": 0.6736555528055722
+    "split": "naive_random_5fold",
+    "macro_f1": 0.5893028206446049,
+    "macro_f1_fold_std": 0.006732056943633016,
+    "weighted_f1": 0.6880278988393312,
+    "accuracy": 0.6742212636566135
   },
   {
     "experiment_id": "B2-flat-random-forest-random-split",
-    "macro_f1": 0.7106120089235516,
-    "weighted_f1": 0.7725007828491852,
-    "accuracy": 0.7889544956334194
+    "split": "naive_random_5fold",
+    "macro_f1": 0.7110652732752348,
+    "macro_f1_fold_std": 0.009719928179616056,
+    "weighted_f1": 0.7732037576353783,
+    "accuracy": 0.7892727079871301
+  },
+  {
+    "experiment_id": "B3-rotation-pixel-logistic",
+    "split": "lot_grouped_5fold",
+    "macro_f1": 0.6095379112584512,
+    "macro_f1_fold_std": 0.00928277658751381,
+    "weighted_f1": 0.6843286900961616,
+    "accuracy": 0.6660538132447053
   }
 ]
