@@ -1,0 +1,86 @@
+[
+  {
+    "experiment_id": "P3-kmeans-logreg",
+    "macro_f1": 0.7539181027375519,
+    "weighted_f1": 0.8129418760012069,
+    "accuracy": 0.8036276208323021,
+    "notes": "ECE=0.0167; per-class F1 Center=0.860 Donut=0.706 Edge-Loc=0.743 Edge-Ring=0.958 Loc=0.563 Near-full=0.915 Random=0.832 Scratch=0.373 none=0.836"
+  },
+  {
+    "experiment_id": "P3-kmeans-ridge",
+    "macro_f1": 0.63951089562954,
+    "weighted_f1": 0.7383908614188721,
+    "accuracy": 0.7462433263798042,
+    "notes": "per-class F1 Center=0.805 Donut=0.518 Edge-Loc=0.592 Edge-Ring=0.942 Loc=0.311 Near-full=0.703 Random=0.744 Scratch=0.335 none=0.805"
+  },
+  {
+    "experiment_id": "P3-kmeans-svm",
+    "macro_f1": 0.739249993839249,
+    "weighted_f1": 0.8027360073644629,
+    "accuracy": 0.8081533076406322,
+    "notes": "per-class F1 Center=0.855 Donut=0.676 Edge-Loc=0.693 Edge-Ring=0.957 Loc=0.489 Near-full=0.885 Random=0.832 Scratch=0.414 none=0.852"
+  },
+  {
+    "experiment_id": "P3-kmeans-rf",
+    "macro_f1": 0.7612786150453384,
+    "weighted_f1": 0.8005469636514735,
+    "accuracy": 0.8061379627337977,
+    "notes": "per-class F1 Center=0.906 Donut=0.808 Edge-Loc=0.679 Edge-Ring=0.944 Loc=0.580 Near-full=0.976 Random=0.868 Scratch=0.277 none=0.813"
+  },
+  {
+    "experiment_id": "P3-pca-logreg",
+    "macro_f1": 0.7398721505967507,
+    "weighted_f1": 0.8041466127732549,
+    "accuracy": 0.7940458932927907,
+    "notes": "ECE=0.0205; per-class F1 Center=0.859 Donut=0.714 Edge-Loc=0.726 Edge-Ring=0.961 Loc=0.549 Near-full=0.875 Random=0.798 Scratch=0.356 none=0.822"
+  },
+  {
+    "experiment_id": "P3-pca-ridge",
+    "macro_f1": 0.6280584901922865,
+    "weighted_f1": 0.7352938271464159,
+    "accuracy": 0.7417176395714741,
+    "notes": "per-class F1 Center=0.807 Donut=0.545 Edge-Loc=0.601 Edge-Ring=0.940 Loc=0.319 Near-full=0.686 Random=0.640 Scratch=0.318 none=0.797"
+  },
+  {
+    "experiment_id": "P3-pca-svm",
+    "macro_f1": 0.7266934308247183,
+    "weighted_f1": 0.7959231206363758,
+    "accuracy": 0.8015062051408973,
+    "notes": "per-class F1 Center=0.859 Donut=0.693 Edge-Loc=0.680 Edge-Ring=0.960 Loc=0.479 Near-full=0.857 Random=0.792 Scratch=0.379 none=0.841"
+  },
+  {
+    "experiment_id": "P3-pca-rf",
+    "macro_f1": 0.7447199906962492,
+    "weighted_f1": 0.7924332478063917,
+    "accuracy": 0.7976876568963689,
+    "notes": "per-class F1 Center=0.879 Donut=0.760 Edge-Loc=0.663 Edge-Ring=0.944 Loc=0.572 Near-full=0.946 Random=0.817 Scratch=0.310 none=0.811"
+  },
+  {
+    "experiment_id": "P3-random-logreg",
+    "macro_f1": 0.76966772291968,
+    "weighted_f1": 0.8249218599548912,
+    "accuracy": 0.8185836014567054,
+    "notes": "ECE=0.0231; per-class F1 Center=0.873 Donut=0.751 Edge-Loc=0.751 Edge-Ring=0.961 Loc=0.590 Near-full=0.883 Random=0.833 Scratch=0.438 none=0.845"
+  },
+  {
+    "experiment_id": "P3-random-ridge",
+    "macro_f1": 0.6546529640769447,
+    "weighted_f1": 0.7524360392372572,
+    "accuracy": 0.7585828943181416,
+    "notes": "per-class F1 Center=0.823 Donut=0.581 Edge-Loc=0.617 Edge-Ring=0.948 Loc=0.352 Near-full=0.669 Random=0.683 Scratch=0.414 none=0.806"
+  },
+  {
+    "experiment_id": "P3-random-svm",
+    "macro_f1": 0.7530053602859443,
+    "weighted_f1": 0.8130271989876949,
+    "accuracy": 0.8177703921083336,
+    "notes": "per-class F1 Center=0.867 Donut=0.722 Edge-Loc=0.706 Edge-Ring=0.961 Loc=0.513 Near-full=0.851 Random=0.822 Scratch=0.480 none=0.856"
+  },
+  {
+    "experiment_id": "P3-random-rf",
+    "macro_f1": 0.7368779448853201,
+    "weighted_f1": 0.7830046242965607,
+    "accuracy": 0.7890605664179896,
+    "notes": "per-class F1 Center=0.879 Donut=0.786 Edge-Loc=0.656 Edge-Ring=0.946 Loc=0.537 Near-full=0.950 Random=0.828 Scratch=0.253 none=0.797"
+  }
+]

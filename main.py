@@ -4,7 +4,8 @@ from importlib import import_module
 
 def main():
     parser = argparse.ArgumentParser(description="Wafer map project tools")
-    parser.add_argument("action", choices=("verify", "audit", "splits", "check", "baselines", "phase4-dryrun"))
+    parser.add_argument("action", choices=("verify", "audit", "splits", "check", "baselines", "pipeline",
+                                           "tuning", "phase4-dryrun"))
     args = parser.parse_args()
     action = args.action
     if action == "verify":
@@ -18,6 +19,10 @@ def main():
         import_module("scripts.check_splits").main()
     elif action == "baselines":
         import_module("scripts.03_baselines").main()
+    elif action == "pipeline":
+        import_module("scripts.03_pipeline").main()
+    elif action == "tuning":
+        import_module("scripts.04_tuning").main()
     else:
         import_module("scripts.phase4_dryrun").main()
 
