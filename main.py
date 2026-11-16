@@ -5,7 +5,7 @@ from importlib import import_module
 def main():
     parser = argparse.ArgumentParser(description="Wafer map project tools")
     parser.add_argument("action", choices=("verify", "audit", "splits", "check", "baselines", "pipeline",
-                                           "tuning", "final-test", "analysis"))
+                                           "tuning", "final-test", "analysis", "posthoc-median"))
     args = parser.parse_args()
     action = args.action
     if action == "verify":
@@ -25,8 +25,10 @@ def main():
         import_module("scripts.04_tuning").main()
     elif action == "final-test":
         import_module("scripts.05_final_test").main()
-    else:
+    elif action == "analysis":
         import_module("scripts.06_analysis").main()
+    else:
+        import_module("scripts.07_posthoc_median_test").main()
 
 
 if __name__ == "__main__":
