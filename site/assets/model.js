@@ -307,8 +307,11 @@
     const fail = new Uint8Array(N);
     let tool = 'fail', pending = false;
     const update = probBars($('#draw-probs'));
+    // Real edge rings are one die thick. A thicker band looks more like Near-full to the model.
+    const off = (x, y) => x < 0 || y < 0 || x >= SIZE || y >= SIZE || !mask[y * SIZE + x];
+    const onRim = (x, y) => [-1, 0, 1].some((dy) => [-1, 0, 1].some((dx) => off(x + dx, y + dy)));
     const presets = {
-      'Edge ring': (x, y, r) => r > 13.3,
+      'Edge ring': (x, y) => onRim(x, y),
       'Centre blob': (x, y, r) => r < 5.5,
       Donut: (x, y, r) => r > 6 && r < 10,
       Scratch: (x, y) => Math.abs(x - y) < 0.6 && x > 6 && x < 24,
@@ -327,15 +330,19 @@
       pending = false;
       paint(canvas, codesFor.result(mask, fail), SIZE, SIZE);
       const nFail = sum(fail), dies = sum(mask);
+      if (nFail === 0) {   // no training wafer has zero failing dies, so the model's guess here would mean nothing
+        update(CLASSES.map(() => 0));
+        $$('#draw-probs .prow').forEach((row) => row.classList.remove('top'));
+        $('#draw-notice').innerHTML = `A clean wafer: no failing dies, so no pattern. We don’t ask the model here, because none of our ${fmt(R.audit.subset_rows)} wafers is completely clean. Draw some failing dies, or start from a shape.`;
+        return;
+      }
       const clean = removeIsolated(fail, SIZE, SIZE);
       const extras = [nFail / Math.max(1, dies), (nFail - sum(clean)) / Math.max(1, nFail)];
       const { pooled } = conv.features(clean, mask);
       const probs = conv.predict(pooled, extras);
       const said = update(probs);
       const p = Math.max(...probs);
-      $('#draw-notice').innerHTML = nFail === 0
-        ? 'A clean wafer. Draw some failing dies, or start from a shape.'
-        : `The model says <strong>${said}</strong> (${pct(p)} sure). ${nFail - sum(clean) ? `Our cleanup removed ${nFail - sum(clean)} lonely ${nFail - sum(clean) === 1 ? 'die' : 'dies'} first. ` : ''}Try turning your shape into a thin line, or moving it to the edge.`;
+      $('#draw-notice').innerHTML = `The model says <strong>${said}</strong> (${pct(p)} sure). ${nFail - sum(clean) ? `Our cleanup removed ${nFail - sum(clean)} lonely ${nFail - sum(clean) === 1 ? 'die' : 'dies'} first. ` : ''}Try turning your shape into a thin line, or moving it to the edge.`;
     }
     const schedule = () => { if (!pending) { pending = true; requestAnimationFrame(run); } };
     let down = false;
@@ -358,7 +365,7 @@
     // Start with a short scratch.
     for (let i = 8; i < 22; i++) fail[i * SIZE + i + 1] = mask[i * SIZE + i + 1];
     run();
-    $('#draw-caption').textContent = `Drag on the wafer to mark failing dies. The whole pipeline (cleanup, ${conv.K} filters × 4 turns, rings, logistic regression, temperature) runs in your browser. Your drawing is treated as the full-size map. ${demoNote}`;
+    $('#draw-caption').textContent = `Drag on the wafer to mark failing dies. The whole pipeline (cleanup, ${conv.K} filters × 4 turns, rings, logistic regression, temperature) runs in your browser. Your drawing is treated as the full-size map. The model only learned from real wafers, so a shape no real wafer has can get an odd answer. ${demoNote}`;
   })();
 
   // ============================================================ S7 bootstrap

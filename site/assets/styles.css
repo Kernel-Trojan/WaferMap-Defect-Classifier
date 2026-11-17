@@ -91,7 +91,7 @@ h1, h2, h3, h4 { text-wrap: balance; }
 .progress span { display: block; height: 100%; width: 0; background: var(--accent); }
 
 /* ------------------------------------------------------------------- hero */
-.hero { position: relative; overflow: hidden; background: var(--surface); border-bottom: 1px solid var(--line); }
+.hero { position: relative; overflow: hidden; background: color-mix(in srgb, var(--surface) 55%, transparent); border-bottom: 1px solid var(--line); }
 .hero-inner { max-width: 1160px; margin: 0 auto; padding: 56px 24px 18px; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 40px; align-items: center; }
 .eyebrow, .sec-no { font: 600 12px/1.4 var(--sans); letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
 h1 { font: 500 clamp(2.2rem, 5.2vw, 3.7rem)/1.06 var(--serif); letter-spacing: -0.015em; margin: 0 0 20px; }
@@ -663,6 +663,8 @@ table.heat td small { color: var(--ink-2); }
 .person dl { margin: 0; }
 .person dt { font-weight: 650; font-size: 0.86rem; margin-top: 10px; }
 .person dd { margin: 3px 0 0; font-size: 0.9rem; }
+.person dd ul { margin: 4px 0 0; padding-left: 18px; }
+.person dd li + li { margin-top: 6px; }
 .person dd.todo { color: var(--muted); font-style: italic; border-left: 3px dashed var(--line-strong); padding-left: 10px; }
 
 /* footer */
@@ -897,3 +899,12 @@ h3.fig-head { font: 700 1.3rem/1.3 var(--sans); margin: 34px 0 14px; }
   .stat { padding: 12px 14px; } .stat span { font-size: 0.84rem; }
 }
 @media (prefers-reduced-motion: reduce) { .js .stat-cards .stat { opacity: 1; transform: none; } }
+
+/* ------------------------------------------- page background: faint die grid with patterns (assets/bg.js) */
+.bg {
+  position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; opacity: 0.4;
+  -webkit-mask-image: linear-gradient(90deg, #000, rgba(0, 0, 0, 0.3) 30%, rgba(0, 0, 0, 0.3) 70%, #000);
+  mask-image: linear-gradient(90deg, #000, rgba(0, 0, 0, 0.3) 30%, rgba(0, 0, 0, 0.3) 70%, #000);
+}
+@media (prefers-color-scheme: dark) { .bg { opacity: 0.38; } }
+@media print { .bg { display: none; } }
