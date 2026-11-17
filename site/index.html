@@ -1480,7 +1480,47 @@ pip install -r requirements.txt</code></pre><button type="button" class="copy">C
     <article class="person">
       <h3>Satyam Suman</h3>
       <dl>
-        
+        <dt>What I built</dt><dd><ul>
+          <li><strong>The project skeleton and the data loader :</strong> I set up the repository and initialised the directory layout. I also wrote the loader
+            for <code>LSWMD.pkl</code>, an old Python 2 pickle containing our dataset that newer pandas can't open and a verifier that checks the file loads with the expected row counts.
+            <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/f27e8eb">f27e8eb</a> <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/6ca01ec">6ca01ec</a></li>
+          <li><strong>The audit and the split :</strong> The script <code>01_audit.py</code> creates our <span data-key="audit.subset_rows" data-f="int">35,519</span>-wafer sample
+            from <span data-key="audit.source_rows" data-f="int">811,457</span> wafer maps from the dataset. The script <code>02_freeze_splits.py</code> joins like wafers or wafer having an identical map
+            into <span data-key="split.groups" data-f="int">10,119</span> groups, does 80:20 train-test split, and does Stratified K-Fold Cross Validation with 5 folds. It also stores naive random folds, helping us identify that <span data-key="leak.validation_naive" data-f="pct">86%</span> of validation wafers would have had another wafer from the same lot in the training data. <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/18f9272">18f9272</a></li>
+          <li><strong>The baselines :</strong> The script <code>03_baselines.py</code>, contains simple models which I built before our actual method. The lowest validation performance was achieved by the majority class (<span data-key="validation.B0-majority.macro_f1" data-f="f3">0.049</span>) and the highest was a flat random forest on raw pixels (<span data-key="validation.B2-flat-random-forest.macro_f1" data-f="f3">0.696</span>). The baselines were used to set a bar for our method to beat.
+            <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/2159c61">2159c61</a></li>
+          <li><strong>The CNN-style pipeline :</strong> I started with lonely-die cleanup and nearest-die resizing in the script (<code>src/preprocessing.py</code>). It also included patch sampling, ZCA whitening, k-means / PCA / random filters, the
+            triangle activation, trying every filter at 4 turns and ring pooling in the script (<code>src/features.py</code>) and finally the
+            calibrated logistic regression in the script (<code>src/models.py</code>).
+            <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/237ad40">237ad40</a></li>
+          <li><strong>Validation approach :</strong>I tried 3 filter types × 4 classifiers grid and the 7
+            one-change ablations in the scripts (<code>03_pipeline.py</code>, <code>04_tuning.py</code>), all on 5 lot-grouped folds to find the best validation approach.
+            <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/237ad40">237ad40</a></li>
+          <li><strong>Publishing :</strong> I shipped the GitHub Pages workflow that deploys <code>site/</code>.
+            <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/1fc8031">1fc8031</a></li>
+        </ul></dd>
+        <dt>One key choice I made and why</dt><dd><strong>Ring pooling and four rotations :</strong> Wafer defects are related to their distance from the centre and not to the direction in which the wafer is oriented. 
+          So, instead of dividing the wafer into a fixed grid, we tried to group filter responses into concentric rings and tested each filter at four rotations (0°, 90°, 180° and 270°). Validation results confirmed that both choices improved performance. Replacing rings with quadrants reduced macro-F1 from <span data-key="validation.P3-kmeans-logreg.macro_f1" data-f="f3">0.753</span> to <span data-key="validation.P3-ablation-quadrant-pooling.macro_f1" data-f="f3">0.665</span>, while using only one filter orientation reduced it to <span data-key="validation.P3-ablation-no-rotation.macro_f1" data-f="f3">0.715</span>. The improvement was particularly noticeable for Center and Scratch defects. We also confirmed that the model was rotation-invariant on the test set, with macro-F1 remaining almost unchanged at <span data-key="rotation.ours.0" data-f="f3">0.765</span> and <span data-key="rotation.ours.6" data-f="f3">0.766</span> after a 90° rotation.
+          </dd>
+        <dt>How I evaluated it</dt><dd>
+          All experiments were evaluated only on 5 lot-grouped validation folds, never on the test set. 
+          We compared macro-F1 scores and their variation across folds to make sure that there was an improvement (our final approach scored 0.753 ± 0.004). 
+          Each ablation changed only one part of the pipeline. Once the best setup was selected, we froze the configuration and ran the test set just once.
+          </dd>
+        <dt>One limitation</dt><dd><strong>The learned filters aren't what makes it work.</strong> The paired check on the
+          same folds found that random 5×5 filters score <span data-key="filter_check.random" data-f="f3">0.769</span> against
+          <span data-key="filter_check.kmeans" data-f="f3">0.754</span> for k-means, a gap of <span data-key="filter_check.gap.0" data-f="sf3">+0.015</span>
+          (<span data-key="filter_check.gap.1" data-f="sf3">+0.007</span> to <span data-key="filter_check.gap.2" data-f="sf3">+0.023</span>). It worked because of the structure we
+           built around the filters (sliding windows, four turns, rings), not k-means itself. The k-means filters
+          are easier to read, but we don't claim they are more accurate.</dd>
+        <dt>A small change I can reason about</dt><dd><strong>Use 64 filters instead of 32 :</strong> More filters should give
+          more small shapes to describe a pattern, so I'd expect the score to rise, mostly on the thin and small classes.
+          Validation agrees, macro-F1 <span data-key="validation.P3-ablation-k64.macro_f1" data-f="f3">0.778</span> against
+          <span data-key="validation.P3-kmeans-logreg.macro_f1" data-f="f3">0.753</span>, with Scratch going from
+          <span data-key="validation.P3-kmeans-logreg.per_class.Scratch" data-f="f3">0.373</span> to
+          <span data-key="validation.P3-ablation-k64.per_class.Scratch" data-f="f3">0.429</span>. The cost is twice the features (32 × 5 = 160 becomes
+          320) and a little more risk of fitting the 5 folds. We kept 32 because it
+          was the planned approach and was frozen before the test.</dd>
       </dl>
     </article>
   </div>

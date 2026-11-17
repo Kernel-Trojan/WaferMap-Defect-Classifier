@@ -1,19 +1,8 @@
-# Exact versions, so everyone gets the same numbers.
-# With ">=" a fresh install grabs whatever is newest, and newer scikit-learn
-# can shift baseline scores slightly (we saw about 0.001 macro-F1 drift).
-# Tested with Python 3.13.
-
 numpy==2.5.5
 pandas==3.1.1
 matplotlib==3.11.2
 scikit-learn==1.9.1
-
-# scikit-learn leans on these for its math (scipy runs logistic regression's
-# solver, joblib/threadpoolctl handle parallel work), so they can move results too.
 scipy==1.18.1
 joblib==1.6.0
 threadpoolctl==3.8.0
-
-# Only for the reference textbook CNN (scripts/08_reference_cnn.py), the one
-# backprop model we compare against. Our own pipeline never uses it.
 torch==2.14.1
