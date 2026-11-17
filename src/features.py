@@ -7,6 +7,11 @@ transform() - slide those filters over every 5x5 spot on each wafer, apply a
 
 Everything learned here (patch stats, ZCA, filters) is fitted only on the wafers
 passed to fit(). Call fit() on training folds only, or the test set leaks in.
+
+Based on Coates, Ng and Lee, "An Analysis of Single-Layer Networks in Unsupervised
+Feature Learning", AISTATS 2011 (https://proceedings.mlr.press/v15/coates11a.html):
+ZCA-whitened patches, k-means filters, triangle activation, region pooling. Our
+changes: rings instead of quadrants, and each filter tried at 4 rotations.
 """
 from __future__ import annotations
 

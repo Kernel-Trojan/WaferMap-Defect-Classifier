@@ -10,6 +10,7 @@
 </head>
 <body>
 <a class="skip-link" href="#main-content"><span class="skip-long">Skip to main content: final results ↓</span><span class="skip-short">Skip to results ↓</span></a>
+<canvas class="bg" id="bg" aria-hidden="true"></canvas>
 
 <div class="topbar">
   <a class="brand" href="#top">Wafer Defects</a>
@@ -1408,28 +1409,78 @@ pip install -r requirements.txt</code></pre><button type="button" class="copy">C
   <p class="sec-no">S17 · Team</p>
   <h2 id="team-title">Team, contributions, AI disclosure</h2>
 
+  <p>Each of us answers the same five questions: what we built, one key choice, how we checked it, one
+    limitation, and one small change we can reason about. Result numbers are read from the data files like everywhere
+    else on this page; facts about how the work went link to the commit that records them.</p>
+
   <div class="team">
     <article class="person">
       <h3>Rishi Kumar</h3>
       <dl>
-        <dt>What I built</dt><dd class="todo">To be written by Rishi. The git history shows: data audit, split and leak
-          checker, baseline fixes, final test, robustness analysis, textbook CNN, real-world precision.</dd>
-        <dt>One key choice I made and why</dt><dd class="todo">To be written by Rishi.</dd>
-        <dt>How I evaluated it</dt><dd class="todo">To be written by Rishi.</dd>
-        <dt>One limitation I own</dt><dd class="todo">To be written by Rishi.</dd>
-        <dt>A small change I can reason about</dt><dd class="todo">To be written by Rishi.</dd>
+        <dt>What I built</dt><dd><ul>
+          <li><strong>Reproduced same results on my laptop to check reproducibility :</strong> I pinned exact package versions after a fresh install moved
+            the random-forest baseline from 0.6949 to 0.6957. <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/adf8cf5">adf8cf5</a></li>
+          <li><strong>I checked the dataset's own split :</strong> WM-811K gives its own train/test column. It shares no
+            lots, but the classes are lopsided: <span data-key="audit.builtin.edge_ring_train" data-f="pct">88%</span> of Edge-Ring sits in its
+            training half, against only <span data-key="audit.builtin.none_train" data-f="pct">25%</span> of <code>none</code>. That's why it was decided to
+            built our own split. <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/753ca6e">753ca6e</a></li>
+          <li><strong>The leak checker :</strong> I recorded group and duplicate stats
+            (<span data-key="split.duplicates.distinct_maps" data-f="int">107</span> identical maps over
+            <span data-key="split.duplicates.rows_sharing_a_map" data-f="int">215</span> wafers, <span data-key="split.duplicates.maps_with_conflicting_labels" data-f="int">3</span>
+            with clashing labels) and wrote <code>python main.py check</code>, which stops with an error if any lot,
+            group or identical map sits on both sides. To test the checker I gave it random folds that leak on purpose:
+            it caught 2,823 of 3,491 lots. <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/81ec02c">81ec02c</a> <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/149beea">149beea</a></li>
+          <li><strong>Fixed baseline B3 :</strong> It trained on 0/1/2 maps but predicted on 0/1 maps, so its 0.358 meant
+            nothing. Fixed, it scores <span data-key="validation.B3-rotation-pixel-logistic.macro_f1" data-f="f3">0.610</span>. <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/c4c929b">c4c929b</a></li>
+          <li><strong></strong> The evaluation tools (lot bootstrap, calibration error, rotate and shift), the
+            frozen recipe, the run-once final test, the rotation / shift / learning-curve / error analysis, the post-hoc
+            median look, the textbook CNN, the random-filter check, real-fab precision and the README.
+            <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/3359471">3359471</a> <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/f4d5c32">f4d5c32</a> <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/0f3bc16">0f3bc16</a> <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/abd6e37">abd6e37</a> <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/0fd7984">0fd7984</a></li>
+          <li><strong>This website</strong>: all 17 sections, the model that runs in the browser, and the script that
+            writes its data. All the what should be in the website part. (<code>scripts/11_site_data.py</code>). <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/790e947">790e947</a></li>
+        </ul></dd>
+        <dt>One key choice I made and why</dt><dd><strong>Freeze first, then test once :</strong> Before the test set
+          was ever loaded, I wrote the recipe into <code>final_config.json</code> and pushed it (commit
+          <a data-commit="freeze" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/9bc9713">9bc9713</a>, <span data-key="meta.freeze.time" data-f="raw">04:39</span>). The results were
+          pushed <span data-key="meta.results.time" data-f="raw">04:46</span> (<a data-commit="results" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/f4d5c32">f4d5c32</a>), and the
+          script refuses to run a second time. Why: if you peek at the test and then tweak, it stops being a fair exam.
+          I also kept the gentle isolated cleanup over median, because on validation median cut Scratch Recall from
+          <span data-key="denoise.isolated.Scratch.recall" data-f="f3">0.711</span> to
+          <span data-key="denoise.median.Scratch.recall" data-f="f3">0.596</span>.</dd>
+        <dt>How I evaluated it</dt><dd>Macro-F1, so a rare pattern like Near-full counts as much as <code>none</code>.
+          For the uncertainty, 1,000 bootstrap rounds that resample whole test lots
+          (<span data-key="split.test_lots" data-f="int">2,051</span> of them), not single wafers, because wafers in one lot look alike. Our
+          model: <span data-key="test.models.ours.macro_f1.0" data-f="f3">0.765</span> (<span data-key="test.models.ours.macro_f1.1" data-f="f3">0.744</span> to
+          <span data-key="test.models.ours.macro_f1.2" data-f="f3">0.783</span>). Against the random forest:
+          <span data-key="test.gaps.forest.0" data-f="sf3">+0.056</span> (<span data-key="test.gaps.forest.1" data-f="sf3">+0.038</span> to
+          <span data-key="test.gaps.forest.2" data-f="sf3">+0.074</span>), a range that never crosses zero. Calibration error
+          <span data-key="test.models.ours.ece.0" data-f="f3">0.025</span> against the forest's <span data-key="test.models.forest.ece.0" data-f="f3">0.240</span>.
+          Then stress tests: every 15° turn, shifts of 1 to 3 pixels, a learning curve, and a textbook CNN, which beats
+          us by <span data-key="test.gaps.cnn.0" data-f="af3">0.064</span> (<span data-key="test.gaps.cnn.2" data-f="af3">0.047</span> to
+          <span data-key="test.gaps.cnn.1" data-f="af3">0.081</span>).</dd>
+        <dt>One limitation</dt><dd>Our test set is <span data-key="real_world.test_share.8" data-f="pct">27%</span> <code>none</code>;
+          real fab data is about <span data-key="real_world.real_share.8" data-f="pct">85%</span> <code>none</code>. Re-weighted to real shares,
+          macro-F1 falls from <span data-key="real_world.table.macro avg.F1 on test" data-f="f3">0.765</span> to
+          <span data-key="real_world.table.macro avg.F1 at real shares" data-f="f3">0.646</span>, and Scratch precision from
+          <span data-key="real_world.table.Scratch.precision on test" data-f="f3">0.267</span> to
+          <span data-key="real_world.table.Scratch.precision at real shares" data-f="f3">0.055</span>: about 1 Scratch alarm in
+          <span data-key="real_world.table.Scratch.precision at real shares" data-f="inv">18</span> is real. So the model is a first-pass filter
+          for a person, not full automation. And this is an estimate from re-weighting, not a measurement on a real
+          production line.</dd>
+        <dt>A small change I can reason about</dt><dd><strong>Switch to median cleanup :</strong> Median switches off any
+          failing die without enough failing neighbours, so it wipes out one-die-thin scratches. My guess: the average
+          goes up, Scratch goes down. The post-hoc test look agrees: macro-F1 <span data-key="denoise.gap.0" data-f="sf3">+0.033</span>
+          (<span data-key="denoise.gap.1" data-f="sf3">+0.016</span> to <span data-key="denoise.gap.2" data-f="sf3">+0.051</span>), but Scratch recall falls from
+          <span data-key="denoise.isolated.Scratch.recall" data-f="f3">0.711</span> to <span data-key="denoise.median.Scratch.recall" data-f="f3">0.596</span> and
+          Edge-Ring recall from <span data-key="denoise.isolated.Edge-Ring.recall" data-f="f3">0.951</span> to
+          <span data-key="denoise.median.Edge-Ring.recall" data-f="f3">0.903</span>. Which is better depends on whether a fab cares most about
+          catching scratches. We didn't switch, because the test set had already been used (S13).</dd>
       </dl>
     </article>
     <article class="person">
       <h3>Satyam Suman</h3>
       <dl>
-        <dt>What I built</dt><dd class="todo">To be written by Satyam. The git history shows: the CNN-style pipeline
-          (<code>src/preprocessing.py</code>, <code>src/features.py</code>, <code>src/models.py</code>), the filter ×
-          classifier grid and the 7 ablations, and this website.</dd>
-        <dt>One key choice I made and why</dt><dd class="todo">To be written by Satyam.</dd>
-        <dt>How I evaluated it</dt><dd class="todo">To be written by Satyam.</dd>
-        <dt>One limitation I own</dt><dd class="todo">To be written by Satyam.</dd>
-        <dt>A small change I can reason about</dt><dd class="todo">To be written by Satyam.</dd>
+        
       </dl>
     </article>
   </div>
@@ -1441,7 +1492,7 @@ pip install -r requirements.txt</code></pre><button type="button" class="copy">C
 
 <footer class="footer">
   <div class="footer-inner">
-    <p><strong>About this page.</strong> Every number on it is read from <code>site/data/</code>, which
+    <p><strong>About this page.</strong> Every result number on it is read from <code>site/data/</code>, which
       <code>python main.py site-data</code> writes from the repository's <code>experiments/</code> and
       <code>splits/</code> files; source chips link to them. Wafers in S1 to S4 are training wafers; test wafers appear
       only in the results sections. Static page: no server, no tracking, no external requests. The four reference
@@ -1463,5 +1514,6 @@ pip install -r requirements.txt</code></pre><button type="button" class="copy">C
 <script src="assets/story.js"></script>
 <script src="assets/model.js"></script>
 <script src="assets/results.js"></script>
+<script src="assets/bg.js"></script>
 </body>
 </html>
