@@ -144,6 +144,7 @@ Put `LSWMD.pkl` in `data/`, then run these in order:
 | `python main.py posthoc-median` | Post-hoc median vs isolated denoise on test | ~1.5 min |
 | `python main.py reference-cnn` | Textbook CNN, epochs picked on validation, test once | ~25 min |
 | `python main.py real-world-precision` | Precision replayed at real class shares | seconds |
+| `python main.py site-data` | Exports the wafers and numbers the website shows | ~4 min first time |
 
 `final-test` and `reference-cnn` each refuse to run once their results file exists. To reproduce
 from scratch, delete `experiments/final_test.json` and `experiments/reference_cnn.json` first.
@@ -153,12 +154,40 @@ Seeds are fixed everywhere, but k-means and the linear algebra use several CPU t
 rerun of the Phase 3 scripts can move a macro-F1 by up to about 0.001. That's far smaller than the
 fold-to-fold spread logged next to every result (0.004 to 0.014).
 
+## Website
+
+`site/` is the project website: one static page (plain HTML, CSS and JavaScript, no server and no
+build step) laid out as sections S0 to S17: problem, data, split, preprocessing, baselines, method,
+evaluation design, validation, final results, robustness, errors, the CNN reference, the denoise
+trade-off, real-fab precision, limitations, how to rerun it, and the team. To view it locally run
+`python -m http.server --directory site` and open http://localhost:8000 (opening `site/index.html`
+directly also works).
+
+- **Numbers.** `python main.py site-data` reads `experiments/` and `splits/`, writes
+  `site/data/results.js`, `wafers.js` and `model.js`, logs the same numbers to
+  `experiments/site_stats.json`, and fills every `data-key` number in `site/index.html`, so no number
+  on the page is typed by hand. Source chips next to the numbers link to the files on GitHub.
+  `python -m scripts.11_site_data --fill-only` refreshes the page's numbers without re-exporting.
+- **Wafers.** S1 to S4 show training wafers only. Test wafers appear only in the results sections.
+- **Demo model.** The filter explorer, rotation playground, draw-a-wafer pad and the confidence in the
+  error explorer need a fitted model. `site-data` uses `data/final_models.joblib` when it exists (it
+  is gitignored and only exists where `final-test` was run). Otherwise it refits the frozen recipe on
+  the training lots with the same seed, caches it in `data/site_demo_refit.joblib` (gitignored), and
+  the page labels those demos as using the refit. The refit's test predictions are compared with the
+  saved ones (agreement only, no score): they agree on 99.86% of test wafers.
+- **Self-check.** The footer reports whether the page's JavaScript reproduces the Python pipeline:
+  cleanup and resizing on every wafer shown, the convolution and classifier to 3 decimals, the
+  bootstrap from the saved predictions, and both ends of the real-fab slider.
+- `.github/workflows/pages.yml` publishes it to GitHub Pages (Settings -> Pages -> Source: GitHub
+  Actions).
+
 ## Repo map
 
 ```
 main.py                  one entry point for every step
 src/                     data loading, preprocessing, conv features, models, evaluation helpers
-scripts/                 one numbered script per step (01_audit ... 10_real_world_precision)
+scripts/                 one numbered script per step (01_audit ... 11_site_data)
 splits/                  the frozen split and its summary
 experiments/log.csv      every logged result; JSON/CSV files and figures sit next to it
+site/                    the static website (index.html, assets/, data/wafers.js)
 ```
