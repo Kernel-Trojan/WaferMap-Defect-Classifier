@@ -4,7 +4,7 @@
 
 ES 335 (Machine Learning) course project by **Rishi Kumar** and **Satyam Suman**.
 
-- **Project website:** https://kernel-trojan.github.io/WaferMap-Defect-Classifier/ (an interactive walk-through of
+- **Project website:** https://kernel-trojan.github.io/WaferMap-Defect-Classifier (an interactive walk-through of
   everything below)
 - **Data:** [WM-811K on Kaggle](https://www.kaggle.com/datasets/qingyi/wm811k-wafer-map) (not included in this repo)
 - **License:** [MIT](LICENSE)
