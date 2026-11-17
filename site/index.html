@@ -1,0 +1,1467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wafer Defects · a CNN without backprop</title>
+<meta name="description" content="ES 335 project: can a CNN-style model whose filters come from k-means, with no backprop, sort wafer maps into 9 defect patterns and survive rotation? Question, data, split, preprocessing, method, evaluation, results, errors, limitations and how to rerun it.">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<a class="skip-link" href="#main-content"><span class="skip-long">Skip to main content: final results ↓</span><span class="skip-short">Skip to results ↓</span></a>
+
+<div class="topbar">
+  <a class="brand" href="#top">Wafer Defects</a>
+  <nav class="toplinks" id="toplinks" aria-label="Sections">
+    <a href="#problem">Problem</a><a href="#data">Data</a><a href="#split">Split</a><a href="#prep">Prep</a>
+    <a href="#baselines">Baselines</a><a href="#method">Method</a><a href="#testing">Testing</a><a href="#validation">Validation</a>
+    <a href="#main-content">Results</a><a href="#robustness">Robustness</a><a href="#errors">Errors</a><a href="#cnn">vs CNN</a>
+    <a href="#denoise">Denoise</a><a href="#real-fab">Real fab</a><a href="#limits">Limits</a><a href="#run">Run it</a><a href="#team">Team</a>
+  </nav>
+  <button type="button" class="menu-btn" id="menu-btn" aria-expanded="false" aria-controls="toplinks">Sections</button>
+  <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
+</div>
+
+<!-- S0 =================================================================== -->
+<header class="hero" id="top">
+  <div class="hero-inner">
+    <div class="hero-text">
+      <p class="eyebrow">ES 335 Machine Learning · Rishi Kumar and Satyam Suman</p>
+      <h1>Can a CNN learn wafer defects without backprop?</h1>
+      <p class="lede">Chip factories print hundreds of chips (dies) on one silicon wafer. After testing, each wafer
+        gives a map of which dies passed and which failed. The <em>shape</em> of the failures (a ring at the edge, a
+        blob in the middle, a thin scratch) is a clue to what went wrong in the factory.</p>
+      <p class="lede">We built a small CNN-style model whose filters are learned with plain k-means, with no backprop
+        anywhere, and asked: can it sort wafer maps into 9 defect patterns, and keep working when a wafer comes in
+        turned or a little off-centre?</p>
+      <p class="answer"><strong>Short answer: yes, mostly.</strong> It clearly beats simple baselines, gives honest
+        confidence numbers, and shrugs off quarter turns. A normal backprop CNN still scores higher. Everything's
+        below.</p>
+    </div>
+    <figure class="hero-figure">
+      <svg class="hero-wafer" id="hero-wafer" viewBox="0 0 360 360" role="img" aria-label="Animation: a probe tests every die on a real training wafer, then the map changes to the next defect pattern"></svg>
+      <figcaption id="hero-caption">A real training wafer, being tested die by die.</figcaption>
+    </figure>
+  </div>
+  <div class="hero-cards">
+    <div class="hcard hcard-main">
+      <span class="hcard-label">Macro-F1, our model</span>
+      <b data-key="test.models.ours.macro_f1.0" data-f="f3">0.765</b>
+      <small>95% range <span data-key="test.models.ours.macro_f1.1" data-f="f3">0.744</span> to <span data-key="test.models.ours.macro_f1.2" data-f="f3">0.783</span></small>
+    </div>
+    <div class="hcard">
+      <span class="hcard-label">vs best simple baseline</span>
+      <b data-key="test.gaps.forest.0" data-f="sf3">+0.056</b>
+      <small>random forest on raw pixels, range <span data-key="test.gaps.forest.1" data-f="sf3">+0.038</span> to <span data-key="test.gaps.forest.2" data-f="sf3">+0.074</span></small>
+    </div>
+    <div class="hcard">
+      <span class="hcard-label">Score after a 90° turn</span>
+      <b data-key="rotation.ours.6" data-f="f3">0.766</b>
+      <small>unrotated: <span data-key="rotation.ours.0" data-f="f3">0.765</span></small>
+    </div>
+    <div class="hcard">
+      <span class="hcard-label">vs textbook CNN</span>
+      <b data-key="test.gaps.cnn.0" data-f="sf3">−0.064</b>
+      <small>the CNN wins; we use <span data-key="cnn.learned_ratio" data-f="x">48×</span> fewer learned numbers</small>
+    </div>
+  </div>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="#main-content" data-skip>Skip to the results</a>
+    <a class="btn" href="#problem">Start from the beginning</a>
+    <span class="chip-note">Scores are on the locked test set. <a class="src" data-src="experiments/final_test.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/final_test.json">final_test.json</a></span>
+  </div>
+</header>
+
+<main id="story">
+
+<!-- S1 =================================================================== -->
+<section class="sec" id="problem" aria-labelledby="problem-title">
+  <p class="sec-no">S1 · The problem</p>
+  <h2 id="problem-title">The problem</h2>
+  <p class="ask">“What's a wafer, and why would anyone sort its failures?”</p>
+  <p class="short"><strong>A wafer is a thin disc of silicon, and the factory builds many chips on it at once. At the
+    end, every chip is tested, and the results make a picture of the wafer: a wafer map.</strong> The model looks at
+    that picture and names the pattern the failures make.</p>
+
+  <div class="story-cards" id="story-cards">
+    <figure class="scard">
+      <svg id="sc-wafer" viewBox="0 0 200 140" role="img" aria-label="Animation: a silicon wafer covered in a grid of identical chips, with light sweeping across it"></svg>
+      <figcaption><b>1 · The wafer</b>A thin, polished disc of silicon. Hundreds of identical chips, called
+        <em>dies</em>, are built on it side by side and cut apart at the very end.</figcaption>
+    </figure>
+    <figure class="scard">
+      <svg id="sc-fab" viewBox="0 0 200 140" role="img" aria-label="Animation: a cross-section of the wafer as layers are deposited, patterned and etched, step after step"></svg>
+      <figcaption><b>2 · The fab</b>In the factory (the <em>fab</em>), each wafer goes through a long chain of steps
+        that add, pattern and etch thin layers. Wafers travel through it together in batches called <em>lots</em>.</figcaption>
+    </figure>
+    <figure class="scard">
+      <svg id="sc-probe" viewBox="0 0 200 140" role="img" aria-label="Animation: a probe card lowers its needles onto one die at a time; each die lights up as passed or failed"></svg>
+      <figcaption><b>3 · The test</b>A machine called a <em>prober</em> touches each die with fine needles and runs an
+        electrical test. Every die gets one answer: pass or fail.</figcaption>
+    </figure>
+    <figure class="scard">
+      <svg id="sc-map" viewBox="0 0 200 140" role="img" aria-label="Animation: the pass and fail results are written into their places, and a ring of failures appears"></svg>
+      <figcaption><b>4 · The wafer map</b>Write every answer in its place and you get a wafer map. WM-811K, our
+        dataset, has <span data-key="audit.source_rows" data-f="int">811,457</span> of them.</figcaption>
+    </figure>
+  </div>
+
+  <div class="photo-strip" aria-label="Real reference photos">
+    <p class="photo-strip-title">The same four steps, in real life</p>
+    <div class="photo-row">
+      <figure class="photo">
+        <img src="assets/photos/wafer.jpg" width="720" height="480" loading="lazy" alt="A real 8-inch silicon wafer covered in a grid of identical processor chips, shown in a museum display">
+        <figcaption><b>A real wafer</b>An 8-inch silicon wafer covered in identical chips.
+          <span class="credit">Photo: Naotake Murayama, <a href="https://creativecommons.org/licenses/by/2.0">CC BY 2.0</a>, via
+          <a href="https://commons.wikimedia.org/wiki/File:Wafer_with_Pentium_chips.jpg">Wikimedia Commons</a> (cropped)</span></figcaption>
+      </figure>
+      <figure class="photo">
+        <img src="assets/photos/fab.jpg" width="720" height="480" loading="lazy" alt="Two people in cleanroom suits working in a photolithography lab lit with yellow light">
+        <figcaption><b>A cleanroom</b>Lithography rooms are lit yellow so the light-sensitive coating isn't exposed by accident.
+          <span class="credit">Photo: O. Usher, UCL Mathematical and Physical Sciences, <a href="https://creativecommons.org/licenses/by/2.0">CC BY 2.0</a>, via
+          <a href="https://commons.wikimedia.org/wiki/File:Cleanroom_-_photolithography_lab_(9148360385).jpg">Wikimedia Commons</a> (cropped)</span></figcaption>
+      </figure>
+      <figure class="photo">
+        <img src="assets/photos/prober.jpg" width="720" height="480" loading="lazy" alt="A wafer prober opened up for service, with a patterned wafer sitting on its stage">
+        <figcaption><b>A wafer prober</b>Opened up for service: the wafer sits on the stage that steps it under the needles.
+          <span class="credit">Photo: Ixnayonthetimmay, <a href="https://creativecommons.org/licenses/by-sa/3.0">CC BY-SA 3.0</a>, via
+          <a href="https://commons.wikimedia.org/wiki/File:Wafer_prober_service_configuration.jpg">Wikimedia Commons</a> (cropped; this version is CC BY-SA 3.0 too)</span></figcaption>
+      </figure>
+      <figure class="photo">
+        <img src="assets/photos/probecard.jpg" width="720" height="480" loading="lazy" alt="Close-up of a probe card: rings of fine needles that touch the pads of one die at a time">
+        <figcaption><b>A probe card</b>The fine needles that touch each die's pads during the test.
+          <span class="credit">Photo: Jasycheng, <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</a>, via
+          <a href="https://commons.wikimedia.org/wiki/File:CIS_probe_card.jpg">Wikimedia Commons</a> (resized; this version is CC BY-SA 4.0 too)</span></figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <figure class="figure" id="w2m-figure">
+    <h3 class="fig-title">From a wafer to a wafer map</h3>
+    <div class="controls">
+      <div class="chips" id="w2m-pick" role="group" aria-label="Choose a pattern"></div>
+      <button type="button" class="btn" id="w2m-replay">↺ Test it again</button>
+    </div>
+    <svg class="w2m" id="w2m" viewBox="0 0 720 320" role="img" aria-label="Animation: a probe tests a wafer die by die, and each result is written into the wafer map on the right"></svg>
+    <p class="readout" id="w2m-readout" aria-live="polite"></p>
+    <p class="legend"><span class="key"><i class="sw sw-off"></i>not on the wafer</span>
+      <span class="key"><i class="sw sw-pass"></i>die passed</span>
+      <span class="key"><i class="sw sw-fail"></i>die failed</span></p>
+    <figcaption>The prober visits one die at a time; each answer lands in the same spot on the map. The map is a real
+      training wafer from WM-811K, drawn on a coarser grid so each die is easy to see.</figcaption>
+  </figure>
+
+  <div class="prose">
+    <p><strong>Why care about the pattern?</strong> Failures that form a shape usually share a cause. A ring of
+      failures at the edge and a blob in the middle point engineers to different parts of the process. Sorting maps
+      by pattern by hand is slow, so we want a model to do the first pass.</p>
+  </div>
+
+  <figure class="figure">
+    <h3 class="fig-title">Meet the 9 patterns. Click a card to see another wafer of the same kind.</h3>
+    <div class="patterns" id="patterns"></div>
+    <figcaption>Real training wafers. Notice how much a class varies: no two Scratch wafers look alike. Pattern names
+      come from the dataset's own labels. We learn to recognise the shape. We don't learn, and don't claim, what
+      caused it. <a class="src" data-src="experiments/class_counts.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/class_counts.csv">class_counts.csv</a></figcaption>
+  </figure>
+
+  <figure class="figure qbox">
+    <h3 class="fig-title">The project in seven lines</h3>
+    <dl class="frame">
+      <div><dt>Question</dt><dd>Can a one-layer CNN-style pipeline whose filters are learned without backprop (k-means
+        on small patches) sort wafer maps into 9 defect patterns, and keep working when a wafer is rotated or a
+        little off-centre?</dd></div>
+      <div><dt>One row (unit)</dt><dd>One wafer map: a grid of dies, 0 = off the wafer, 1 = pass, 2 = fail.</dd></div>
+      <div><dt>Target</dt><dd>One of 9 labels: Center, Donut, Edge-Loc, Edge-Ring, Loc, Near-full, Random, Scratch, none.</dd></div>
+      <div><dt>When the prediction is made</dt><dd>Right after a wafer finishes testing, when its map exists.</dd></div>
+      <div><dt>What the model sees then</dt><dd>Only the map. Lot name, die size and wafer number are never features. The
+        lot name is used for one thing: keeping batches together when we split the data (S3).</dd></div>
+      <div><dt>Main score</dt><dd>Macro-F1: the plain average of the 9 per-class F1 scores. S7 explains why.</dd></div>
+      <div><dt>Limits of the claim</dt><dd>Labeled wafers only; one public dataset from one source; a class mix with far
+        more defects than a real fab (S14); a pattern label is not a root cause.</dd></div>
+    </dl>
+  </figure>
+
+  <details class="more">
+    <summary>Want the details? Questions you might have</summary>
+    <dl class="faq">
+      <dt>Why not just use a normal CNN?</dt>
+      <dd>That's the point of the project: we want to see how far you get with the CNN <em>structure</em> (sliding
+        filters, pooling) when the filters come from a simple, fast, explainable method instead of backprop. We do
+        train a textbook CNN at the end as a yardstick (S12).</dd>
+      <dt>Is this a real factory?</dt>
+      <dd>It's a public dataset of real wafer maps (WM-811K). We don't know which factory, and we don't have process
+        data, so we can't link patterns to causes.</dd>
+      <dt>What do F1 and macro-F1 mean?</dt>
+      <dd>For one class, F1 balances two questions: of the wafers we flagged as that class, how many really were
+        (precision), and of the real ones, how many did we catch (recall). Macro-F1 averages the 9 class scores
+        equally, so a rare class counts as much as a common one.</dd>
+    </dl>
+  </details>
+</section>
+
+<!-- S2 =================================================================== -->
+<section class="sec" id="data" aria-labelledby="data-title">
+  <p class="sec-no">S2 · Data understanding</p>
+  <h2 id="data-title">The data, and what the audit found</h2>
+  <p class="ask">“<span data-key="audit.source_rows" data-f="int">811,457</span> wafers sounds like a lot. How many could you actually use?”</p>
+  <p class="short"><strong><span data-key="audit.subset_rows" data-f="int">35,519</span>.</strong> Most of the file has no
+    label, and most labeled wafers are clean. We kept every wafer with a defect and a random sample of clean ones.</p>
+
+  <div class="prose">
+    <p>We used <strong>WM-811K</strong>, a public set of <strong data-key="audit.source_rows" data-f="int">811,457</strong> real wafer
+      maps published with a 2015 paper by Wu, Jang and Chen (<em>IEEE Transactions on Semiconductor Manufacturing</em>).
+      It's free on <a href="https://www.kaggle.com/datasets/qingyi/wm811k-wafer-map">Kaggle</a> as one 2 GB file,
+      <code>LSWMD.pkl</code>. We don't re-host it. Before building anything, we went through it properly.</p>
+  </div>
+
+  <h3 class="fig-head">From <span data-key="audit.source_rows" data-f="thousand">811 thousand</span> maps to our <span data-key="audit.subset_rows" data-f="thousand">35 thousand</span></h3>
+  <figure class="figure cfunnel-fig">
+    <div class="cfunnel" id="funnel" role="img" aria-label="Bar chart: all 811,457 wafer maps, then the labeled and unlabeled ones, the clean and defect ones, and the 35,519 we kept"></div>
+  </figure>
+  <p class="fig-note">Hover a bar for the exact number. <a class="src" data-src="experiments/audit_summary.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/audit_summary.json">source: audit_summary.json</a></p>
+
+  <div class="stat-cards">
+    <div class="stat"><b data-key="audit.unlabeled_rows" data-f="int">638,507</b>
+      <span>left out: no label (<strong data-key="audit.unlabeled_share" data-f="pct">79%</strong> of the file)</span></div>
+    <div class="stat"><b data-key="audit.none_rows" data-f="int">147,431</b>
+      <span>completely fine, "none" (<strong data-key="audit.none_share_of_labeled" data-f="pct">85%</strong> of labeled)</span></div>
+    <div class="stat"><b data-key="audit.defect_rows" data-f="int">25,519</b>
+      <span>with a defect pattern: we kept every one</span></div>
+    <div class="stat"><b data-key="audit.subset_rows" data-f="int">35,519</b>
+      <span>our final sample (<strong data-key="audit.none_kept" data-f="int">10,000</strong> random "none" + all defects)</span></div>
+  </div>
+
+  <div class="prose">
+    <p><strong>Why throw away <span data-key="audit.none_dropped" data-f="int">137,431</span> clean wafers?</strong> If we kept them
+      all, <strong data-key="audit.none_share_of_labeled" data-f="pct">85%</strong> of the training data would say "nothing to see
+      here". The model would learn to shout "none" and still look accurate, and training would get about
+      <span data-key="derived.labeled_vs_sample" data-f="x">5×</span> slower for very little new information. So we kept every
+      defect wafer and a random <strong data-key="audit.none_kept" data-f="int">10,000</strong> clean ones (seed 42). The catch, which
+      we come back to in <a href="#real-fab">section 14</a>: our test set has more defects than a real factory, so precision
+      here is higher than it would be on a real line.</p>
+  </div>
+
+  <figure class="figure">
+    <h3 class="fig-title">Near-full is <span data-key="audit.rarest_to_commonest" data-f="x">65×</span> rarer than Edge-Ring</h3>
+    <div class="controls">
+      <div class="seg" id="counts-set" role="group" aria-label="Which wafers">
+        <button type="button" data-value="subset" aria-pressed="true">Our sample</button>
+        <button type="button" data-value="labeled" aria-pressed="false">All labeled wafers</button>
+      </div>
+      <label class="check"><input type="checkbox" id="counts-log"> Log scale</label>
+    </div>
+    <div id="class-counts" class="hbars"></div>
+    <figcaption>That gap is why we score with macro-F1 and give rare classes more weight in training. Switch to all
+      labeled wafers and the <em>none</em> bar swallows the chart.
+      <a class="src" data-src="experiments/audit_summary.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/audit_summary.json">audit_summary.json · class_counts</a></figcaption>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">The important columns</h3>
+    <div class="table-wrap"><table class="data text">
+      <thead><tr><th>Column</th><th>What it is</th><th>Do we use it?</th></tr></thead>
+      <tbody>
+        <tr><td><code>waferMap</code></td><td>the die grid (0 off, 1 pass, 2 fail)</td><td><strong>Yes, it's the only model input</strong></td></tr>
+        <tr><td><code>failureType</code></td><td>the pattern label (missing for <span data-key="audit.unlabeled_share" data-f="pct">79%</span>)</td><td>Yes, as the target</td></tr>
+        <tr><td><code>lotName</code></td><td>which batch (cassette) the wafer came from</td><td>Only to keep batches together in the split</td></tr>
+        <tr><td><code>waferIndex</code></td><td>position in the lot</td><td>No</td></tr>
+        <tr><td><code>dieSize</code></td><td>number of dies on the wafer</td><td>No (we checked it matches the map: true for all <span data-key="audit.die_count_matches" data-f="int">811,457</span>)</td></tr>
+        <tr><td><code>trianTestLabel</code></td><td>the dataset's own train/test tag (typo is in the original)</td><td>No, see the findings below</td></tr>
+      </tbody>
+    </table></div>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">What the audit found, and what we did</h3>
+    <div class="table-wrap"><table class="data text findings">
+      <thead><tr><th>What we found</th><th>What we did</th></tr></thead>
+      <tbody>
+        <tr><td><span data-key="audit.source_rows" data-f="int">811,457</span> wafers, only <span data-key="audit.labeled_rows" data-f="int">172,950</span> (<span data-key="audit.labeled_share" data-f="pct">21%</span>) labeled</td><td>Labeled wafers only</td></tr>
+        <tr><td><span data-key="audit.none_rows" data-f="int">147,431</span> of those are <em>none</em> (<span data-key="audit.none_share_of_labeled" data-f="pct">85%</span>)</td><td>Keep all defects + <span data-key="audit.none_kept" data-f="int">10,000</span> random <em>none</em></td></tr>
+        <tr><td>Wafers come in lots (batches of up to 25). <span data-key="audit.full_lots" data-f="int">21,762</span> of the <span data-key="audit.unique_lots" data-f="int">46,293</span> lots in the file are full 25-wafer lots</td><td>Split by lot, never by single wafer (S3)</td></tr>
+        <tr><td>In our sample, <span data-key="split.duplicates.rows_sharing_a_map" data-f="int">215</span> wafers share an identical map with another wafer: <span data-key="split.duplicates.distinct_maps" data-f="int">107</span> distinct maps, every one spread over several lots</td><td>Lots that share an identical map are treated as one group, so a copy can't end up on both sides</td></tr>
+        <tr><td><span data-key="split.duplicates.maps_with_conflicting_labels" data-f="int">3</span> of those identical maps carry two different labels (Center vs Loc once, Edge-Loc vs Edge-Ring twice)</td><td>Kept as they are. It tells us the labels have a bit of noise</td></tr>
+        <tr><td>The dataset's own train/test tag is lot-safe (<span data-key="audit.builtin.lot_overlap" data-f="int">0</span> shared lots) but lopsided: <span data-key="audit.builtin.edge_ring_train" data-f="pct">88%</span> of Edge-Ring is in its train part, but only <span data-key="audit.builtin.none_train" data-f="pct">25%</span> of <em>none</em></td><td>Not used. We made our own split with a similar class mix on both sides</td></tr>
+        <tr><td><span data-key="sizes.file_shapes" data-f="int">632</span> different map sizes in the whole file; <span data-key="sizes.subset_shapes" data-f="int">338</span> in our sample, from <span data-key="sizes.subset_min_side" data-f="int">18</span> to <span data-key="sizes.subset_max_side" data-f="int">212</span> dies on a side (median longest side <span data-key="sizes.median_longest_side" data-f="int">38</span>)</td><td>Shrink everything to 32×32 by picking the nearest die (S4)</td></tr>
+        <tr><td><span data-key="audit.missing_lot_rows" data-f="int">0</span> lot names missing</td><td>Nothing to fix</td></tr>
+      </tbody>
+    </table></div>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">The smallest and the biggest map, with the same die size on screen</h3>
+    <div class="controls">
+      <div class="seg" id="size-mode" role="group" aria-label="Size view">
+        <button type="button" data-value="real" aria-pressed="true">Show at real size</button>
+        <button type="button" data-value="32" aria-pressed="false">Show after resizing to 32×32</button>
+      </div>
+    </div>
+    <div class="size-stage" id="size-stage"></div>
+    <p class="notice" id="size-notice"></p>
+    <figcaption>Two training wafers: the smallest grid in our sample (<span data-key="sizes.small.h" data-f="int">26</span>×<span data-key="sizes.small.w" data-f="int">25</span>, Edge-Loc)
+      and the biggest (<span data-key="sizes.large.h" data-f="int">153</span>×<span data-key="sizes.large.w" data-f="int">187</span>, Edge-Ring). The big grid has
+      <span data-key="sizes.ratio" data-f="x">44×</span> more cells. The full file has a few odder shapes, from a
+      <span data-key="sizes.file_smallest.0" data-f="int">15</span>×<span data-key="sizes.file_smallest.1" data-f="int">3</span> sliver up to
+      <span data-key="sizes.file_largest.0" data-f="int">300</span>×<span data-key="sizes.file_largest.1" data-f="int">202</span>.</figcaption>
+  </figure>
+
+  <div class="callout">
+    <h3>Access limits</h3>
+    <ul>
+      <li>The data is public on Kaggle, but you need a free Kaggle account to download it. We don't redistribute it,
+        and <code>data/</code> is gitignored.</li>
+      <li>It's an old Python 2 pickle. Our loader (<code>src/data_loader.py</code>) reads it with <code>latin1</code>
+        text encoding and patches an old pandas module name.</li>
+      <li>No personal data, no passwords or keys anywhere in the project.</li>
+    </ul>
+  </div>
+
+  <details class="more">
+    <summary>Want the details? Questions you might have</summary>
+    <dl class="faq">
+      <dt>Why not use the unlabeled <span data-key="audit.unlabeled_share" data-f="pct">79%</span>?</dt>
+      <dd>We can't check a prediction without a label, and we didn't want to guess labels. It's a limitation: we
+        can't say how the model behaves on that majority.</dd>
+      <dt>Why not use the dataset's own train/test split?</dt>
+      <dd>It keeps lots apart (good), but <span data-key="audit.builtin.edge_ring_train" data-f="pct">88%</span> of
+        Edge-Ring wafers sit in its training part and <span data-key="audit.builtin.none_test" data-f="pct">75%</span> of
+        <em>none</em> sit in its test part. A test set that lopsided measures the class mix more than the model.</dd>
+      <dt>Do <span data-key="audit.none_kept" data-f="int">10,000</span> none wafers make the model biased?</dt>
+      <dd>It changes precision (S14), not recall. We say so.</dd>
+    </dl>
+  </details>
+</section>
+
+<!-- S3 =================================================================== -->
+<section class="sec" id="split" aria-labelledby="split-title">
+  <p class="sec-no">S3 · Evaluation design</p>
+  <h2 id="split-title">How we split the data: by lot</h2>
+  <p class="ask">“Why not just shuffle the wafers and split 80/20?”</p>
+  <p class="short"><strong>Because wafers from the same batch look alike, so the model would get a sneak peek at the
+    test.</strong> We keep whole batches together instead.</p>
+
+  <div class="prose">
+    <p><strong>What's a lot?</strong> Wafers are made in batches called lots, up to 25 at a time. Wafers in one lot go
+      through the same machines, on the same day, with the same settings. So they tend to fail in the same way.</p>
+  </div>
+
+  <figure class="figure figure-slim">
+    <svg class="lot-svg" viewBox="0 0 480 140" role="img" aria-label="Animation: one cassette of wafers moves through four process steps together">
+      <line class="lot-track" x1="14" y1="116" x2="466" y2="116"/>
+      <g class="lot-tool lt1"><rect x="56" y="14" width="80" height="44" rx="8"/><text x="96" y="41">Deposit</text><path d="M96 58v20"/></g>
+      <g class="lot-tool lt2"><rect x="152" y="14" width="80" height="44" rx="8"/><text x="192" y="41">Pattern</text><path d="M192 58v20"/></g>
+      <g class="lot-tool lt3"><rect x="248" y="14" width="80" height="44" rx="8"/><text x="288" y="41">Etch</text><path d="M288 58v20"/></g>
+      <g class="lot-tool lt4"><rect x="344" y="14" width="80" height="44" rx="8"/><text x="384" y="41">Test</text><path d="M384 58v20"/></g>
+      <g class="lot-cassette">
+        <rect x="-26" y="82" width="52" height="34" rx="5"/>
+        <path d="M-18 90h36M-18 95h36M-18 100h36M-18 105h36M-18 110h36"/>
+        <text x="0" y="134">one lot</text>
+      </g>
+    </svg>
+    <figcaption>Whatever a machine does to a lot on its pass, it does to every wafer in it.</figcaption>
+  </figure>
+
+  <div class="prose">
+    <p><strong>Why does that matter?</strong> Look at the top row below: six wafers from one lot. Now the bottom row:
+      six wafers with the same label, each from a different lot. The top row is like six photos of the same person.
+      The bottom row is six different people.</p>
+  </div>
+
+  <figure class="figure">
+    <div class="controls"><div class="seg" id="lot-tabs" role="group" aria-label="Choose a lot"></div></div>
+    <h3 class="row-title" id="lot-row-a"></h3>
+    <div class="wafer-row" id="lot-mates"></div>
+    <h3 class="row-title" id="lot-row-b"></h3>
+    <div class="wafer-row" id="lot-strangers"></div>
+    <p class="notice">Notice how the top row repeats the same rim, the same weak spots, even the same scatter. The
+      bottom row shares only the label.</p>
+    <figcaption>Training wafers. The comparison wafers in the last four tabs were drawn at random.</figcaption>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">Two wafers from one lot overlap far more than two from different lots</h3>
+    <div class="table-wrap"><table class="data" id="overlap-table"></table></div>
+    <figcaption>Overlap = failing dies in both ÷ failing dies in either (intersection over union), on cleaned 32×32
+      maps of training wafers, median over pairs. Same lot: wafers next to each other in a lot. Different lots: 4,000
+      random same-class pairs. <a class="src" data-src="experiments/site_stats.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/main/experiments/site_stats.json">site_stats.json · overlap</a></figcaption>
+  </figure>
+
+  <div class="prose">
+    <p>If we shuffled single wafers into train and test, most test wafers would have a "sibling" from the same lot in
+      training. The model could score well just by remembering the lot's look, not by learning what Edge-Ring means.
+      On a new lot it hasn't seen, that score would fall. So we keep whole lots together: a lot is either all in
+      training or all in test.</p>
+    <h3 class="sub">Why not this one line?</h3>
+    <pre class="code refused"><code>train, test = train_test_split(wafers, test_size=0.20, shuffle=True)   # what most tutorials do</code></pre>
+    <p>This line treats every wafer as a stranger to every other wafer. Ours aren't strangers. It would put lot-mates
+      on both sides. What we use instead:</p>
+    <pre class="code"><code># 1. Wafers that share a lot, or share an identical map, are joined into one group
+# 2. 20% of the groups go to the locked test set
+test_groups = GroupShuffleSplit(test_size=0.20, random_state=42)
+# 3. The other 80% get 5 validation folds, keeping groups whole and the class mix even
+folds = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)</code></pre>
+  </div>
+
+  <figure class="figure" id="splitter-figure">
+    <h3 class="fig-title">Split it yourself: 40 real lots from the training data</h3>
+    <div class="controls">
+      <button type="button" class="btn" id="split-naive">Shuffle wafers (naive)</button>
+      <button type="button" class="btn btn-primary" id="split-lot">Split by lot (ours)</button>
+      <span class="legend"><span class="key"><i class="sw sw-train"></i>train</span><span class="key"><i class="sw sw-test"></i>test</span><span class="key"><i class="sw sw-leak"></i>has a sibling on the other side</span></span>
+    </div>
+    <svg class="splitter" id="splitter" role="img" aria-label="Forty lots of wafers being split into a train box and a test box"></svg>
+    <p class="readout" id="split-readout" aria-live="polite"></p>
+    <figcaption>Each tile is one lot; each dot is one wafer in it. Press either button again for a new random
+      draw.</figcaption>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">The numbers that prove the point</h3>
+    <div class="big-compare">
+      <div class="big bad"><b data-key="leak.validation_naive" data-f="pct">86%</b><span>of validation wafers have a lot-mate in training, with naive random folds (average over 5 folds)</span></div>
+      <div class="big good"><b data-key="leak.validation_ours" data-f="pct">0%</b><span>with our lot-grouped folds</span></div>
+      <div class="big bad"><b data-key="leak.test_naive" data-f="pct">86%</b><span>of test wafers have a lot-mate in training, with the one-line 80/20 split (seed 42)</span></div>
+      <div class="big good"><b data-key="leak.test_ours" data-f="pct">0%</b><span>with our locked test set</span></div>
+    </div>
+    <figcaption>Computed from <code>splits/project_splits.csv</code>, which keeps both our folds and the naive ones.
+      <a class="src" data-src="splits/project_splits.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/splits/project_splits.csv">project_splits.csv</a></figcaption>
+  </figure>
+
+  <div class="otherwise">
+    <h3>What would go wrong otherwise</h3>
+    <p>Scores look better than they really are, and we'd never know. We measured it on the two pixel baselines:
+      naive folds scored <span data-key="validation.B2-flat-logistic-random-split.macro_f1" data-f="f3">0.589</span> instead
+      of <span data-key="validation.B2-flat-logistic.macro_f1" data-f="f3">0.579</span> for logistic regression, and
+      <span data-key="validation.B2-flat-random-forest-random-split.macro_f1" data-f="f3">0.711</span> instead of
+      <span data-key="validation.B2-flat-random-forest.macro_f1" data-f="f3">0.696</span> for the random forest.
+      <a class="src" data-src="experiments/log.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/log.csv">log.csv · B2-*-random-split</a></p>
+    <p>Honest take: here the inflation is small, about one or two points. We still block it, because (1) we didn't
+      know it would be small until we measured it, (2) one or two points is about the size of the gaps we care about
+      between methods, and (3) with leakage you can never be sure your test means anything.</p>
+  </div>
+
+  <figure class="figure">
+    <h3 class="fig-title">The final split</h3>
+    <div class="table-wrap"><table class="data text">
+      <thead><tr><th></th><th>Wafers</th><th>Lots</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Locked test set</td><td><span data-key="split.test_rows" data-f="int">7,236</span> (<span data-key="split.test_fraction" data-f="pct1">20.4%</span>)</td><td><span data-key="split.test_lots" data-f="int">2,051</span></td><td>untouched until the one final run</td></tr>
+        <tr><td>Training part</td><td><span data-key="split.train_rows" data-f="int">28,283</span></td><td><span data-key="split.train_lots" data-f="int">8,176</span></td><td>split into 5 folds of about <span data-key="split.fold_rows.0" data-f="int">5,657</span> wafers each</td></tr>
+        <tr><td>Groups (lots joined by identical maps)</td><td><span data-key="split.groups" data-f="int">10,119</span> in total</td><td></td><td>median <span data-key="split.group_sizes.median" data-f="int">2</span> wafers, biggest <span data-key="split.group_sizes.max" data-f="int">31</span>; <span data-key="split.groups_joining_multiple_lots" data-f="int">65</span> groups join more than one lot (up to <span data-key="split.max_lots_in_one_group" data-f="int">7</span>)</td></tr>
+        <tr class="row-strong"><td>Groups on both sides</td><td><span data-key="split.group_overlap_train_test" data-f="int">0</span></td><td></td><td></td></tr>
+        <tr class="row-strong"><td>Identical maps split across train and test</td><td><span data-key="split.duplicates.maps_split_across_train_test" data-f="int">0</span></td><td></td><td></td></tr>
+      </tbody>
+    </table></div>
+    <figcaption><a class="src" data-src="splits/split_summary.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/splits/split_summary.json">split_summary.json</a></figcaption>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">Five validation rounds, every fold with the same class mix</h3>
+    <div class="controls"><div class="seg" id="fold-pick" role="group" aria-label="Validation round"></div></div>
+    <div class="foldbar" id="foldbar"></div>
+    <p class="readout" id="fold-readout" aria-live="polite"></p>
+    <div class="table-wrap"><table class="data" id="fold-table"></table></div>
+    <figcaption>"Stratified" means every fold gets the same class mix, so a fold can't end up with almost no Near-full
+      wafers. <a class="src" data-src="splits/split_summary.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/splits/split_summary.json">split_summary.json · folds</a></figcaption>
+  </figure>
+
+  <p class="prose-note">We also wrote a checker (<code>python main.py check</code>) that runs 21 tests on the split,
+    including one that points it at a naive random fold to prove it catches a real leak.</p>
+
+  <details class="more">
+    <summary>Want the details? How lots are joined into groups, and questions you might have</summary>
+    <figure class="uf">
+      <svg id="uf-svg" viewBox="0 0 520 170" role="img" aria-label="Animation: wafers are joined by lines when they share a lot or an identical map, and each connected cluster becomes one group"></svg>
+      <figcaption>Union-find in one picture: dots are wafers. A line joins two dots if they share a lot (solid) or
+        share an identical map (dashed). Every connected cluster becomes one group, and a group goes to one side
+        only.</figcaption>
+    </figure>
+    <dl class="faq">
+      <dt>Isn't 20% test too small for Near-full?</dt>
+      <dd>Yes, the test has only <span data-key="split.test_class_counts.Near-full" data-f="int">26</span> Near-full
+        wafers, so its score has a wide error bar (<span data-key="test.per_class.ours.Near-full.range.0" data-f="f2">0.79</span> to
+        <span data-key="test.per_class.ours.Near-full.range.1" data-f="f2">0.97</span>). We show the error bar instead of hiding it.</dd>
+      <dt>Why 5 folds?</dt>
+      <dd>Every training wafer gets used for validation exactly once, and we get a spread (how much the score wobbles
+        fold to fold) to tell real gains from noise.</dd>
+      <dt>Why are the folds stratified?</dt>
+      <dd>So every fold has a similar class mix; otherwise a fold could end up with almost no Near-full wafers.</dd>
+    </dl>
+  </details>
+</section>
+
+<!-- S4 =================================================================== -->
+<section class="sec" id="prep" aria-labelledby="prep-title">
+  <p class="sec-no">S4 · Preprocessing</p>
+  <h2 id="prep-title">Preprocessing, step by step</h2>
+  <p class="ask">“The maps are all different sizes and full of specks. How do you make them comparable?”</p>
+  <p class="short"><strong>Four steps, in this order: look at the raw map, switch off lonely failing dies, shrink to
+    32×32, and split it into a fail map and a wafer mask.</strong></p>
+
+  <div class="prose">
+    <p>Raw maps are messy: every size from tiny to huge, and sprinkled with lone failing dies that are usually just
+      noise. Even a perfectly healthy wafer has them. Every die is tested electrically, and a few fail for one-off
+      reasons that leave no pattern.</p>
+  </div>
+
+  <figure class="figure">
+    <div class="split-fig">
+      <div class="wafer-big" id="noise-wafer"></div>
+      <div class="side">
+        <h3 class="fig-title">A healthy wafer is not a clean wafer</h3>
+        <div class="seg seg-col" id="noise-mode" role="group" aria-label="View">
+          <button type="button" data-mode="raw" aria-pressed="true">As tested</button>
+          <button type="button" data-mode="mark" aria-pressed="false">Mark the lonely dies</button>
+          <button type="button" data-mode="clean" aria-pressed="false">Lonely dies removed</button>
+        </div>
+        <p class="readout" id="noise-readout" aria-live="polite"></p>
+        <p class="legend"><span class="key"><i class="sw sw-pass"></i>passed</span><span class="key"><i class="sw sw-fail"></i>failed</span><span class="key"><i class="sw sw-removed"></i>failed, no failing neighbour</span></p>
+      </div>
+    </div>
+    <figcaption>A training wafer labeled <em>none</em>. A model looking through small windows can mistake a chance
+      cluster of these specks for the start of a real defect.</figcaption>
+  </figure>
+
+  <figure class="figure stepper" id="stepper" aria-label="Preprocessing stepper">
+    <div class="controls">
+      <label class="select">Wafer <select id="step-class" aria-label="Class"></select></label>
+      <button type="button" class="btn" id="step-another">Another example ▸</button>
+      <div class="seg" id="step-clean" role="group" aria-label="Cleanup">
+        <button type="button" data-value="isolated" aria-pressed="true">Isolated (ours)</button>
+        <button type="button" data-value="median" aria-pressed="false">Median</button>
+        <button type="button" data-value="none" aria-pressed="false">None</button>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="stage-views" id="stage-views"></div>
+      <div class="stage-text">
+        <p class="step-count" id="step-count"></p>
+        <h3 id="stage-title"></h3>
+        <p id="stage-desc"></p>
+        <dl class="facts" id="stage-facts"></dl>
+      </div>
+    </div>
+    <div class="slider-row">
+      <input type="range" id="step-slider" min="1" max="4" step="1" value="1" aria-label="Preprocessing step">
+      <ol class="slider-labels" id="slider-labels">
+        <li>Raw</li><li>Clean up</li><li>Shrink to 32×32</li><li>Fail map + mask</li>
+      </ol>
+    </div>
+    <p class="notice" id="step-notice"></p>
+    <figcaption>Everything here runs in your browser on real training wafers, with the same rules as
+      <code>src/preprocessing.py</code>. Try the Scratch wafer, step 2, then switch to Median.</figcaption>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">The two cleanup rules, on a tiny wafer</h3>
+    <div class="rule-pair">
+      <div><svg id="rule-iso" class="rule-svg" viewBox="0 0 200 200" role="img" aria-label="Animation: isolated-die removal switches off only dies with no failing neighbour; the diagonal line survives"></svg>
+        <p class="rule-cap"><b>Isolated (ours):</b> switch a failing die off only if none of its 8 neighbours fails.</p></div>
+      <div><svg id="rule-med" class="rule-svg" viewBox="0 0 200 200" role="img" aria-label="Animation: the 3 by 3 median filter keeps a die only if 5 of 9 fail; the one-die-wide line is erased"></svg>
+        <p class="rule-cap"><b>Median (textbook):</b> keep a die failing only if at least 5 of the 9 dies in its 3×3 box fail.</p></div>
+    </div>
+    <p class="notice">Notice: a die on a one-die-wide line has 2 failing neighbours. That's enough for our rule (it
+      needs 1) and never enough for the median (it needs 4 neighbours plus itself).</p>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">Why not the median filter? It erases the scratch</h3>
+    <div class="controls">
+      <div class="seg" id="scratch-pick" role="group" aria-label="Choose a scratch wafer"></div>
+      <label class="check"><input type="checkbox" id="scratch-mark" checked> Mark erased dies in orange</label>
+    </div>
+    <div class="triple" id="scratch-triple"></div>
+    <div class="inspector">
+      <div class="inspector-window" id="inspector-window" aria-hidden="true"></div>
+      <div class="inspector-text">
+        <h3 class="fig-title">Inspect one die</h3>
+        <p class="hint">Hover over the raw map, or tap it, to pick a die.</p>
+        <p id="inspector-verdict" aria-live="polite"></p>
+      </div>
+    </div>
+    <figcaption>Real Scratch training wafers. On a typical Scratch training wafer the median filter removes
+      <span data-key="summary_numbers.Scratch.removed_median" data-f="pct">92%</span> of the failing dies; our rule
+      removes <span data-key="summary_numbers.Scratch.removed_isolated" data-f="pct">36%</span>.</figcaption>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">Our rule on all nine patterns: the shapes stay, the specks go</h3>
+    <div class="controls">
+      <div class="seg" id="gallery-mode" role="group" aria-label="View">
+        <button type="button" data-mode="raw" aria-pressed="false">Before</button>
+        <button type="button" data-mode="mark" aria-pressed="true">Removed dies marked</button>
+        <button type="button" data-mode="clean" aria-pressed="false">After</button>
+      </div>
+      <span class="legend"><span class="key"><i class="sw sw-fail"></i>kept</span><span class="key"><i class="sw sw-removed"></i>removed</span></span>
+    </div>
+    <div class="gallery" id="gallery"></div>
+  </figure>
+
+  <div class="prose">
+    <h3 class="sub">“Wait. Won't you delete the Random class, which is all about scattered failures?”</h3>
+    <p>Good worry. So before cleaning, we save two numbers for every wafer:</p>
+    <ol class="plain">
+      <li><strong>Failing share:</strong> what fraction of the wafer's dies failed.</li>
+      <li><strong>Removed share:</strong> what fraction of the failures the cleanup removed.</li>
+    </ol>
+    <p>These two go straight into the classifier next to the picture features, so the information survives even if
+      the picture loses it.</p>
+    <p>Then we checked how much of a problem it really was. It turns out Random wafers are so crowded (about
+      <span data-key="summary_numbers.Random.failing_share" data-f="pct">47%</span> of dies fail) that almost every
+      failing die has a failing neighbour. Our isolated cleanup removes only
+      <strong data-key="summary_numbers.Random.removed_isolated" data-f="pct1">1.5%</strong> of a typical Random wafer's
+      failures. The median filter would have removed <strong data-key="summary_numbers.Random.removed_median" data-f="pct">43%</strong>.
+      So the gentle cleanup already protects Random, and the two numbers are a safety net on top. They also help on
+      their own: Near-full wafers are about <span data-key="summary_numbers.Near-full.failing_share" data-f="pct">88%</span>
+      failing, and clean wafers lose about <span data-key="summary_numbers.none.removed_isolated" data-f="pct">43%</span>
+      of their few failures to cleanup (they were mostly specks).</p>
+  </div>
+
+  <figure class="figure">
+    <h3 class="fig-title">The two saved numbers, typical value per class</h3>
+    <div class="table-wrap"><table class="data" id="summary-table"></table></div>
+    <figcaption>Training wafers, median per class. Bars show the share of failing dies each cleanup removes.
+      <a class="src" data-src="experiments/site_stats.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/main/experiments/site_stats.json">site_stats.json · summary_numbers</a></figcaption>
+  </figure>
+
+  <div class="prose">
+    <h3 class="sub">Does cleaning help at all?</h3>
+    <p>Yes. Validation macro-F1: no cleanup <span data-key="validation.P3-ablation-denoise-none.macro_f1" data-f="f3">0.729</span>,
+      isolated (ours) <span data-key="validation.P3-kmeans-logreg.macro_f1" data-f="f3">0.753</span>, median
+      <span data-key="validation.P3-ablation-denoise-median.macro_f1" data-f="f3">0.784</span>. The median filter scores
+      higher overall, and costs us scratches; S8 and S13 tell that story.
+      <a class="src" data-src="experiments/log.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/log.csv">log.csv · P3-ablation-denoise-*</a></p>
+    <h3 class="sub">Why 32×32, and why clean before shrinking?</h3>
+    <p>32×32 is small enough to be fast and to run in a browser, big enough to keep the patterns. We tested 64×64 on
+      validation: <span data-key="validation.P3-ablation-size64.macro_f1" data-f="f3">0.766</span> against
+      <span data-key="validation.P3-kmeans-logreg.macro_f1" data-f="f3">0.753</span>, a small gain for 4× the pixels. We
+      stuck with the planned 32×32. We clean <em>before</em> shrinking because "no failing neighbour" only means
+      something on the real grid. Shrink first, and a thin scratch becomes a dotted line whose dots all look lonely.</p>
+  </div>
+
+  <figure class="figure">
+    <div class="triple" id="order-triple"></div>
+    <figcaption>One real Scratch training wafer, both orders.</figcaption>
+  </figure>
+
+  <div class="callout safe">
+    <h3>Leak-safety note</h3>
+    <p>These four steps have nothing to learn: each wafer is cleaned and shrunk on its own, using only its own dies.
+      So they can't leak information between train and test. The steps that <em>do</em> learn something (patch
+      statistics, whitening, filters, scaling, classifier, calibration) come in S6 and are fitted on training folds
+      only.</p>
+  </div>
+
+  <details class="more">
+    <summary>Want the details? Questions you might have</summary>
+    <dl class="faq">
+      <dt>Why does the 32×32 Scratch look broken up?</dt>
+      <dd>Picking the nearest die skips some rows and columns, so a thin diagonal line can lose dies. It's a real cost
+        of shrinking, and part of why Scratch is our weakest class (S11).</dd>
+      <dt>Why not keep the original sizes?</dt>
+      <dd>Filters and pooling need the same grid for every wafer, and the biggest map has
+        <span data-key="sizes.ratio" data-f="x">44×</span> more cells than the smallest.</dd>
+      <dt>Why pick the nearest die instead of blending?</dt>
+      <dd>Blending would invent "half-failed" dies that don't exist.</dd>
+    </dl>
+  </details>
+</section>
+
+<!-- S5 =================================================================== -->
+<section class="sec" id="baselines" aria-labelledby="baselines-title">
+  <p class="sec-no">S5 · Baselines</p>
+  <h2 id="baselines-title">Baselines: the bar we have to beat</h2>
+  <p class="ask">“Is a macro-F1 of 0.75 good?”</p>
+  <p class="short"><strong>Depends on what simple models get.</strong> 0.75 is great if guessing gets 0.05, and bad if a
+    one-liner gets 0.74. So before the real model, we built four simple ones.</p>
+
+  <figure class="figure">
+    <h3 class="fig-title">A random forest on raw pixels is the one to beat</h3>
+    <div id="baseline-chart" class="ichart"></div>
+    <figcaption>Validation macro-F1 over 5 lot-grouped folds; whiskers are ± one fold spread. The blue line is our
+      model on the same folds. Hover a row for what the baseline does.
+      <a class="src" data-src="experiments/log.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/log.csv">log.csv · B0-* to B3-*</a></figcaption>
+  </figure>
+
+  <figure class="figure">
+    <div class="table-wrap"><table class="data text" id="baseline-table"></table></div>
+  </figure>
+
+  <div class="otherwise">
+    <h3>What would go wrong otherwise</h3>
+    <p>Accuracy alone would fool you: always saying the biggest class gets
+      <span data-key="validation.B0-majority.accuracy" data-f="pct">28%</span> accuracy but a macro-F1 of
+      <span data-key="validation.B0-majority.macro_f1" data-f="f3">0.049</span>. And a random forest on raw pixels is already
+      decent at <span data-key="validation.B2-flat-random-forest.macro_f1" data-f="f3">0.696</span>. Our model has to beat
+      that, not just beat guessing.</p>
+  </div>
+
+  <details class="more">
+    <summary>Want the details? Questions you might have</summary>
+    <dl class="faq">
+      <dt>Why compare against logistic regression on pixels if the forest is stronger?</dt>
+      <dd>Because it's the same classifier we use at the end. The gap between them shows exactly what our features
+        add (S9: <span data-key="test.gaps.logistic.0" data-f="sf3">+0.205</span> on test).</dd>
+    </dl>
+  </details>
+</section>
+
+<!-- S6 =================================================================== -->
+<section class="sec" id="method" aria-labelledby="method-title">
+  <p class="sec-no">S6 · Our method</p>
+  <h2 id="method-title">Our method: a CNN with no backprop</h2>
+  <p class="ask">“What does 'a CNN without backprop' actually mean?”</p>
+  <p class="short"><strong>Same shape as a CNN, different learning.</strong> We kept sliding filters, an activation
+    and pooling, and learned each part with a classic, simple tool instead of backprop.</p>
+
+  <div class="prose">
+    <p>A normal CNN slides small filters over an image, keeps the strong responses, pools them, and feeds the result to
+      a classifier. It learns the filters with backprop: millions of tiny nudges. Why bother doing it differently? It
+      trains in minutes on a laptop, it has very few learned numbers, and you can look at every part and see what it
+      does.</p>
+  </div>
+
+  <figure class="figure">
+    <h3 class="fig-title">Every CNN part, and what we use instead</h3>
+    <div class="table-wrap"><table class="data text compare">
+      <thead><tr><th>CNN part</th><th>Normal CNN</th><th>Ours</th><th>Why this choice</th></tr></thead>
+      <tbody>
+        <tr><td>Input</td><td>image</td><td>32×32 fail map + mask + 2 summary numbers</td><td>S4</td></tr>
+        <tr><td>Filters</td><td>learned by backprop</td><td><strong>k-means</strong> on 200,000 small 5×5 patches</td><td>finds the most common little shapes without labels</td></tr>
+        <tr><td>Convolution</td><td>slide filters over image</td><td>same: every 5×5 spot on the wafer (a matrix multiply, "im2col")</td><td></td></tr>
+        <tr><td>Activation</td><td>ReLU</td><td><strong>triangle</strong>: how much closer a patch is to this filter than average</td><td>gives sparse, mostly-zero responses</td></tr>
+        <tr><td>Rotation</td><td>learned (sort of) from data</td><td><strong>each filter tried at 0/90/180/270°, keep the strongest</strong></td><td>a scratch is a scratch at any angle</td></tr>
+        <tr><td>Pooling</td><td>max-pool into a grid</td><td><strong>average inside 4 rings + the whole wafer</strong></td><td>the patterns are about <em>how far from the centre</em></td></tr>
+        <tr><td>Classifier</td><td>dense layers</td><td><strong>logistic regression</strong>, balanced class weights, plus temperature scaling</td><td>simple, fast, honest probabilities</td></tr>
+        <tr class="row-strong"><td>Learned numbers</td><td><span data-key="cnn.learned_numbers.textbook CNN" data-f="int">155,801</span> (our textbook CNN)</td><td><span data-key="cnn.learned_numbers.ours" data-f="int">3,242</span></td><td><span data-key="cnn.learned_ratio" data-f="x">48×</span> fewer</td></tr>
+      </tbody>
+    </table></div>
+    <figcaption><a class="src" data-src="experiments/reference_cnn.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/reference_cnn.json">reference_cnn.json · learned_numbers</a></figcaption>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">The pipeline. Click a box to see what it does.</h3>
+    <ol class="pipe" id="pipe"></ol>
+    <div class="pipe-panel" id="pipe-panel" aria-live="polite"></div>
+    <figcaption>Boxes with a <span class="learn-tag">learns</span> tag fit numbers, and they are fitted on training
+      folds only. In the final run, on all training wafers and never on test wafers.</figcaption>
+  </figure>
+
+  <figure class="figure" id="lab">
+    <h3 class="fig-title">Filter explorer: how a picture becomes 162 numbers</h3>
+    <div class="controls">
+      <div class="chips" id="lab-wafers" role="group" aria-label="Choose a wafer"></div>
+    </div>
+    <div class="lab">
+      <div class="lab-col">
+        <h4>1. What the model sees</h4>
+        <div class="lab-wafer" id="lab-wafer">
+          <svg class="lab-rings" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="4"/><circle cx="16" cy="16" r="8"/><circle cx="16" cy="16" r="12"/><rect class="lab-scan" id="lab-scan" x="0" y="0" width="5" height="5"/></svg>
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn" id="lab-play">▶ Slide the filter</button>
+          <button type="button" class="btn" id="lab-turn">Turn 90°</button>
+        </div>
+      </div>
+      <div class="lab-col">
+        <h4>2. Pick one of the 32 filters</h4>
+        <div class="filter-grid" id="lab-filters" role="group" aria-label="Choose a filter"></div>
+        <p class="hint">Blue cells lean towards a failing die there, red cells towards a passing one.</p>
+      </div>
+      <div class="lab-col">
+        <h4>3. Where it fires</h4>
+        <div class="lab-wafer" id="lab-heat">
+          <svg class="lab-rings" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="4"/><circle cx="16" cy="16" r="8"/><circle cx="16" cy="16" r="12"/></svg>
+        </div>
+        <h4 class="gap">4. Averaged inside each ring</h4>
+        <div class="ringbars" id="lab-bars"></div>
+      </div>
+    </div>
+    <p class="notice" id="lab-readout" aria-live="polite"></p>
+    <figcaption id="lab-caption">Computed live in your browser. Dashed circles are the ring borders.</figcaption>
+  </figure>
+
+  <div class="prose">
+    <h3 class="sub">Why rings?</h3>
+  </div>
+  <figure class="figure figure-slim rings-fig">
+    <svg id="rings-svg" viewBox="0 0 320 200" role="img" aria-label="Animation: four rings light up one by one over a real Donut wafer, then the wafer turns and the rings stay the same"></svg>
+  </figure>
+  <div class="prose">
+    <p>Most patterns are about <em>where</em> the failures sit: in the middle (Center), around the rim (Edge-Ring), in
+      a ring between the two (Donut). Rings measure "how far from the centre" and don't care which way the wafer is
+      turned. We tested the obvious alternative, 4 quadrants: it scored
+      <span data-key="validation.P3-ablation-quadrant-pooling.macro_f1" data-f="f3">0.665</span> instead of
+      <span data-key="validation.P3-kmeans-logreg.macro_f1" data-f="f3">0.753</span> on validation, the biggest drop of any
+      change we tried.</p>
+    <h3 class="sub">Why logistic regression, when the random forest scored slightly higher on validation?</h3>
+    <p>The forest got <span data-key="validation.P3-kmeans-rf.macro_f1" data-f="f3">0.761</span> against our
+      <span data-key="validation.P3-kmeans-logreg.macro_f1" data-f="f3">0.753</span>. Three reasons we still picked logistic
+      regression: (1) it gives honest probabilities after temperature scaling, which a factory needs to decide what to
+      send to a human; (2) it's tiny (9 × 162 weights), so it runs in a browser, as you'll see below; (3) it's the same
+      classifier as the B2 baseline, so the comparison isolates what our features add.</p>
+  </div>
+
+  <figure class="figure" id="draw-figure">
+    <h3 class="fig-title">Try it: draw a wafer and watch the model read it</h3>
+    <div class="draw">
+      <div class="draw-pad">
+        <canvas id="draw-canvas" width="32" height="32" role="img" aria-label="Drawing pad: a 32 by 32 wafer. Drag to mark failing dies."></canvas>
+        <div class="btn-row">
+          <div class="seg" id="draw-tool" role="group" aria-label="Brush">
+            <button type="button" data-value="fail" aria-pressed="true">Fail</button>
+            <button type="button" data-value="pass" aria-pressed="false">Erase</button>
+          </div>
+          <button type="button" class="btn" id="draw-clear">Clear</button>
+        </div>
+        <div class="chips" id="draw-presets" role="group" aria-label="Start from a shape"></div>
+      </div>
+      <div class="draw-out">
+        <div class="probs" id="draw-probs"></div>
+        <p class="notice" id="draw-notice"></p>
+      </div>
+    </div>
+    <figcaption id="draw-caption">Drag on the wafer to mark failing dies. The whole pipeline (cleanup, 32 filters × 4
+      turns, rings, logistic regression, temperature) runs in your browser.</figcaption>
+  </figure>
+
+  <div class="callout safe">
+    <h3>Leak-safety callout</h3>
+    <p>Patch statistics, whitening, the filters, the scaler, the classifier and the temperature are all fitted on
+      training folds only. In the final run, on all training wafers and never on test wafers.</p>
+  </div>
+
+  <details class="more">
+    <summary>Want the details? The formulas</summary>
+    <ul class="plain formulas">
+      <li><strong>Triangle activation.</strong> <code>a_k = max(0, mean_j(d_j) − d_k)</code>, where <code>d_k</code> is the
+        distance from the whitened patch to filter k. A patch closer than average to filter k gets a positive score;
+        the rest get zero.</li>
+      <li><strong>ZCA whitening.</strong> <code>W = V diag(1/sqrt(λ + 0.1)) Vᵀ</code> from the eigenvalues λ and
+        eigenvectors V of the patch covariance. It undoes "neighbouring dies look alike" so k-means finds edges and
+        lines instead of blurry blobs.</li>
+      <li><strong>Rings.</strong> Radii at 0-25-50-75-100% of the half-width; the fifth region is the whole wafer.</li>
+      <li><strong>Mask-aware mean.</strong> Each ring average counts on-wafer dies only, so the empty corners of the
+        square never dilute it.</li>
+      <li><strong>Temperature scaling.</strong> Probabilities are <code>softmax(scores / T)</code>; T is picked on three
+        inner folds of the training data. Dividing every score by T never changes which class wins.</li>
+    </ul>
+  </details>
+</section>
+
+<!-- S7 =================================================================== -->
+<section class="sec" id="testing" aria-labelledby="testing-title">
+  <p class="sec-no">S7 · Evaluation design</p>
+  <h2 id="testing-title">How we kept the test honest</h2>
+  <p class="ask">“How do I know you didn't tune the model on the test set?”</p>
+  <p class="short"><strong>We froze the recipe in git before the test set was loaded, and the test script refuses to
+    run twice.</strong> All tuning happened on the 5 validation folds.</p>
+
+  <figure class="figure">
+    <ol class="timeline" id="timeline">
+      <li><b>Split frozen</b><span>20% of lot groups locked away; 21 leak checks.</span></li>
+      <li><b>Baselines</b><span>B0 to B3 on the validation folds.</span></li>
+      <li><b>Pipeline + 7 ablations</b><span>3 filter types × 4 classifiers, one change at a time. Validation only.</span></li>
+      <li class="tl-lock"><b>Recipe frozen</b><span><a data-commit="freeze" class="commit" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/9bc9713">9bc9713</a> at <span data-key="meta.freeze.time" data-f="raw">04:39</span>: <code>final_config.json</code></span></li>
+      <li class="tl-test"><b>One test run</b><span><a data-commit="results" class="commit" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/f4d5c32">f4d5c32</a> at <span data-key="meta.results.time" data-f="raw">04:46</span>: <code>final_test.json</code></span></li>
+      <li><b>Post-hoc looks</b><span>Median cleanup and a textbook CNN. Labelled, never used to change the model.</span></li>
+    </ol>
+    <figcaption>The git history shows the freeze commit landing before the results commit, on
+      <span data-key="meta.freeze.date" data-f="raw">2026-11-17</span>. Click a hash to open it on GitHub.</figcaption>
+  </figure>
+
+  <div class="frozen">
+    <h3>What we froze</h3>
+    <p>Recipe: k-means, K = <span data-key="recipe.k" data-f="int">32</span>, rotation on, ring pooling,
+      <span data-key="recipe.size" data-f="int">32</span>×<span data-key="recipe.size" data-f="int">32</span>, isolated cleanup.
+      Main model: calibrated logistic regression. Second model: linear SVM. Baselines: B2 logistic and B2 random
+      forest. Bootstrap: 1,000 rounds, seed 42, by test lot. <a class="src" data-src="experiments/final_config.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/final_config.json">final_config.json</a></p>
+  </div>
+
+  <figure class="figure">
+    <h3 class="fig-title">The scores we report, and why each one</h3>
+    <div class="table-wrap"><table class="data text">
+      <thead><tr><th>Metric</th><th>Plain meaning</th><th>Why we use it</th></tr></thead>
+      <tbody>
+        <tr class="row-strong"><td>Macro-F1 (main)</td><td>F1 for each class, then a plain average</td><td>Every class counts the same. Near-full (<span data-key="audit.subset_class_counts.Near-full" data-f="int">149</span> wafers) matters as much as Edge-Ring (<span data-key="audit.subset_class_counts.Edge-Ring" data-f="int">9,680</span>)</td></tr>
+        <tr><td>Per-class precision, recall, F1</td><td>For one class: of the alarms, how many were right; of the real ones, how many we caught</td><td>Shows <em>which</em> patterns work</td></tr>
+        <tr><td>Accuracy</td><td>share of wafers labelled right</td><td>Shown, but never alone: "always say the biggest class" gets <span data-key="validation.B0-majority.accuracy" data-f="pct">28%</span></td></tr>
+        <tr><td>ECE (calibration error)</td><td>gap between how sure the model says it is and how often it's right</td><td>A factory acts on confidence</td></tr>
+        <tr><td>PR-AUC per class</td><td>how well the model ranks one class above the rest</td><td>Works well for rare classes</td></tr>
+      </tbody>
+    </table></div>
+  </figure>
+
+  <div class="prose">
+    <h3 class="sub">Error bars: the lot bootstrap</h3>
+    <p>One test score is one roll of the dice. To see how much it could wobble, we redraw the test set 1,000 times:
+      each time we pick <span data-key="test.lots" data-f="int">2,051</span> lots at random <em>with replacement</em> (some
+      lots twice, some not at all), score the model, and keep the middle 95% of the 1,000 scores. We redraw whole
+      lots, not single wafers, because wafers from one lot are alike, so treating them as independent would make the
+      error bars too narrow.</p>
+    <p>To compare two models, we use the <em>same</em> 1,000 redraws for both and look at the gap in each draw. If
+      the middle 95% of the gaps stays above zero, the win is not just luck of the draw.</p>
+  </div>
+
+  <figure class="figure" id="boot-figure">
+    <h3 class="fig-title">Watch the bootstrap</h3>
+    <div class="controls">
+      <button type="button" class="btn" id="boot-one">Redraw the lots once</button>
+      <button type="button" class="btn btn-primary" id="boot-many">Run 1,000 redraws</button>
+      <button type="button" class="btn" id="boot-reset">Reset</button>
+    </div>
+    <svg class="boot" id="boot-svg" role="img" aria-label="Histogram of macro-F1 over random redraws of the test lots"></svg>
+    <p class="readout" id="boot-readout" aria-live="polite"></p>
+    <figcaption>Recomputed in your browser from the saved test predictions
+      (<a class="src" data-src="experiments/final_test_predictions.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/final_test_predictions.csv">final_test_predictions.csv</a>). Your random
+      draws differ from ours, so expect a range close to, not exactly, the logged
+      <span data-key="test.models.ours.macro_f1.1" data-f="f3">0.744</span> to <span data-key="test.models.ours.macro_f1.2" data-f="f3">0.783</span>.</figcaption>
+  </figure>
+
+  <div class="callout">
+    <h3>What the bootstrap can and can't tell you</h3>
+    <p>It tells us how much the score would move with a different set of lots <em>from the same source</em>. It can't
+      tell us how the model does in a different factory, with a different class mix, or on the
+      <span data-key="audit.unlabeled_share" data-f="pct">79%</span> of wafers with no label.</p>
+  </div>
+</section>
+
+<!-- S8 =================================================================== -->
+<section class="sec" id="validation" aria-labelledby="validation-title">
+  <p class="sec-no">S8 · Validation results</p>
+  <h2 id="validation-title">Validation results and ablations</h2>
+  <p class="ask">“How did you pick this recipe, and what is each part worth?”</p>
+  <p class="short"><strong>On the 5 validation folds, one change at a time.</strong> Rings and rotation carry the
+    method. Three changes scored a little higher, and we say which and why we didn't switch.</p>
+
+  <figure class="figure">
+    <h3 class="fig-title">Every filter type beats the best baseline, except with Ridge</h3>
+    <div class="table-wrap"><table class="data heat" id="grid-table"></table></div>
+    <figcaption>Validation macro-F1 ± fold spread. Darker = higher. The outlined cell is the planned recipe. Best
+      baseline: <span data-key="validation.B2-flat-random-forest.macro_f1" data-f="f3">0.696</span>.
+      <a class="src" data-src="experiments/log.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/log.csv">log.csv · P3-*</a></figcaption>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">Rings matter most. Click a row for what it means.</h3>
+    <div id="ablation-chart" class="ichart clickable"></div>
+    <div class="ablation-card" id="ablation-card" aria-live="polite"></div>
+    <figcaption>Validation macro-F1 for each one-at-a-time change, linked back to our recipe
+      (<span data-key="validation.P3-kmeans-logreg.macro_f1" data-f="f3">0.753</span>); whiskers are ± fold spread.
+      <a class="src" data-src="experiments/log.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/log.csv">log.csv · P3-ablation-*</a></figcaption>
+  </figure>
+
+  <div class="prose">
+    <p>Fold spread for all of these is small, so the four drops at the top are clearly real. Three changes scored
+      higher than our recipe. We didn't switch to them before the test, on purpose: the recipe was planned in advance,
+      and picking every winner on the same 5 folds starts to tune the model to those folds.
+      <code>final_config.json</code> records why we kept K = 32 (a small feature vector that runs in a browser) and
+      isolated cleanup (it keeps scratches). It records nothing for 64×64; we stuck with the planned size.</p>
+  </div>
+
+  <figure class="figure surprise">
+    <h3 class="fig-title">The surprise: random filters beat our k-means filters</h3>
+    <div class="surprise-grid">
+      <div>
+        <div class="seg" id="filter-kind" role="group" aria-label="Filter bank">
+          <button type="button" data-value="kmeans" aria-pressed="true">k-means filters</button>
+          <button type="button" data-value="random" aria-pressed="false">Random filters</button>
+        </div>
+        <div class="filter-grid big" id="filter-tiles"></div>
+      </div>
+      <div>
+        <p>We ran the check properly: same 5 folds, same pipeline, only the filters swapped for random ones, then 1,000
+          paired lot redraws.</p>
+        <ul class="plain">
+          <li>k-means: <b data-key="filter_check.kmeans" data-f="f3">0.754</b> · random: <b data-key="filter_check.random" data-f="f3">0.769</b> ·
+            gap <b data-key="filter_check.gap.0" data-f="sf3">+0.015</b> (95% range <span data-key="filter_check.gap.1" data-f="sf3">+0.007</span> to <span data-key="filter_check.gap.2" data-f="sf3">+0.023</span>)</li>
+          <li>Random was better in <b data-key="filter_check.folds_random_better" data-f="int">5</b> of 5 folds and in
+            <b data-key="filter_check.share_of_draws" data-f="pct">100%</b> of the 1,000 redraws.</li>
+        </ul>
+        <div id="filter-classes" class="ichart compact"></div>
+        <p><strong>What this means:</strong> the strength of the model is the <em>structure</em>: sliding small filters,
+          trying 4 orientations, and pooling in rings. Which exact filters you slide matters less. We kept k-means
+          because its filters are readable (spots and lines you can see) and because the recipe was frozen before the
+          test. We don't claim they're more accurate.</p>
+      </div>
+    </div>
+    <figcaption>k-means scores <span data-key="filter_check.kmeans" data-f="f3">0.754</span> here and
+      <span data-key="validation.P3-kmeans-logreg.macro_f1" data-f="f3">0.753</span> in the grid above; k-means uses several
+      CPU threads, so reruns can move by about 0.001. <a class="src" data-src="experiments/filter_check.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/filter_check.json">filter_check.json</a></figcaption>
+  </figure>
+</section>
+
+<!-- S9 =================================================================== -->
+<section class="sec results-sec" id="main-content" aria-labelledby="results-title">
+  <p class="sec-no">S9 · Final results</p>
+  <h2 id="results-title" tabindex="-1">Final results</h2>
+  <p class="short"><strong>The one test run.</strong> We trained the frozen recipe on all
+    <span data-key="split.train_rows" data-f="int">28,283</span> training wafers and scored it, once, on
+    <span data-key="test.wafers" data-f="int">7,236</span> test wafers from <span data-key="test.lots" data-f="int">2,051</span>
+    lots it had never seen. Numbers in brackets are the 95% range from 1,000 lot redraws.</p>
+
+  <figure class="figure">
+    <div class="table-wrap"><table class="data results-table">
+      <thead><tr><th>Model</th><th>Macro-F1 (95% range)</th><th>Accuracy</th><th>ECE</th></tr></thead>
+      <tbody>
+        <tr><td><i class="mdot m-logistic"></i>B2 logistic regression on pixels</td><td><span data-key="test.models.logistic.macro_f1.0" data-f="f3">0.560</span> <small>(<span data-key="test.models.logistic.macro_f1.1" data-f="f3">0.535</span> to <span data-key="test.models.logistic.macro_f1.2" data-f="f3">0.584</span>)</small></td><td data-key="test.models.logistic.accuracy" data-f="f3">0.682</td><td data-key="test.models.logistic.ece.0" data-f="f3">0.109</td></tr>
+        <tr><td><i class="mdot m-forest"></i>B2 random forest on pixels (best baseline)</td><td><span data-key="test.models.forest.macro_f1.0" data-f="f3">0.709</span> <small>(<span data-key="test.models.forest.macro_f1.1" data-f="f3">0.688</span> to <span data-key="test.models.forest.macro_f1.2" data-f="f3">0.726</span>)</small></td><td data-key="test.models.forest.accuracy" data-f="f3">0.794</td><td data-key="test.models.forest.ece.0" data-f="f3">0.240</td></tr>
+        <tr class="row-strong"><td><i class="mdot m-ours"></i>Ours: k-means features + logistic regression</td><td><span data-key="test.models.ours.macro_f1.0" data-f="f3">0.765</span> <small>(<span data-key="test.models.ours.macro_f1.1" data-f="f3">0.744</span> to <span data-key="test.models.ours.macro_f1.2" data-f="f3">0.783</span>)</small></td><td data-key="test.models.ours.accuracy" data-f="f3">0.820</td><td data-key="test.models.ours.ece.0" data-f="f3">0.025</td></tr>
+        <tr><td><i class="mdot m-svm"></i>Ours with a linear SVM</td><td><span data-key="test.models.svm.macro_f1.0" data-f="f3">0.759</span> <small>(<span data-key="test.models.svm.macro_f1.1" data-f="f3">0.737</span> to <span data-key="test.models.svm.macro_f1.2" data-f="f3">0.778</span>)</small></td><td data-key="test.models.svm.accuracy" data-f="f3">0.826</td><td><small>no probabilities</small></td></tr>
+        <tr><td><i class="mdot m-cnn"></i>Textbook CNN with backprop <span class="badge">post-hoc</span></td><td><span data-key="test.models.cnn.macro_f1.0" data-f="f3">0.829</span> <small>(<span data-key="test.models.cnn.macro_f1.1" data-f="f3">0.812</span> to <span data-key="test.models.cnn.macro_f1.2" data-f="f3">0.843</span>)</small></td><td data-key="test.models.cnn.accuracy" data-f="f3">0.884</td><td></td></tr>
+      </tbody>
+    </table></div>
+    <figcaption><a class="src" data-src="experiments/final_test.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/final_test.json">final_test.json</a>
+      <a class="src" data-src="experiments/reference_cnn.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/reference_cnn.json">reference_cnn.json</a>
+      <a class="src" data-src="experiments/log.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/log.csv">log.csv · P4-test-*, REF-cnn-test</a></figcaption>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">We beat both pixel baselines, tie with the SVM, and lose to the CNN</h3>
+    <div id="gap-plot" class="ichart"></div>
+    <figcaption>Our macro-F1 minus each other model's, on the same 1,000 lot redraws. A range that stays clear of the
+      zero line is a real gap; one that crosses it is a tie.
+      <a class="src" data-src="experiments/final_test.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/final_test.json">final_test.json · final_logreg_minus</a></figcaption>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">Easy patterns are solved, thin ones aren't</h3>
+    <div class="controls" id="perclass-models" role="group" aria-label="Models to show"></div>
+    <div id="perclass" class="ichart"></div>
+    <figcaption>Test F1 per class. The bar through our dot is its 95% range. Hover for precision and recall.
+      <a class="src" data-src="experiments/final_test_predictions.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/final_test_predictions.csv">final_test_predictions.csv</a></figcaption>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">Our confidence numbers are honest; the forest's aren't</h3>
+    <div id="ece-bars" class="ichart"></div>
+    <figcaption>Expected calibration error on the test set (lower is better). When our model says 90% sure, it's
+      right about 90% of the time. The forest says 90% when it's often much less sure than that.</figcaption>
+  </figure>
+
+  <div class="takeaway">
+    <h3>Takeaway</h3>
+    <ul>
+      <li><strong>We beat every simple baseline</strong>, and the gap to the best one
+        (<span data-key="test.gaps.forest.0" data-f="sf3">+0.056</span>) is well clear of luck.</li>
+      <li><strong>Our probabilities are honest</strong> (ECE <span data-key="test.models.ours.ece.0" data-f="f3">0.025</span>;
+        the forest's is about ten times worse).</li>
+      <li><strong>Easy patterns are solved, thin ones aren't.</strong> Edge-Ring
+        <span data-key="test.per_class.ours.Edge-Ring.f1" data-f="f2">0.96</span>, but Scratch
+        <span data-key="test.per_class.ours.Scratch.f1" data-f="f2">0.39</span> and Loc
+        <span data-key="test.per_class.ours.Loc.f1" data-f="f2">0.56</span> (S11 shows why).</li>
+      <li><strong>The validation score (<span data-key="validation.P3-kmeans-logreg.macro_f1" data-f="f3">0.753</span>) and the
+        test score (<span data-key="test.models.ours.macro_f1.0" data-f="f3">0.765</span>) agree</strong>, so we didn't fool
+        ourselves during tuning.</li>
+      <li><strong>A backprop CNN is still better</strong> by about <span data-key="test.gaps.cnn.0" data-f="af2">0.06</span> (S12).</li>
+    </ul>
+    <p class="next-links"><a href="#robustness">Does it survive rotation? → S10</a> <a href="#errors">Where does it fail? → S11</a> <a href="#real-fab">What about a real factory? → S14</a></p>
+  </div>
+</section>
+
+<!-- S10 ================================================================== -->
+<section class="sec" id="robustness" aria-labelledby="robustness-title">
+  <p class="sec-no">S10 · Robustness</p>
+  <h2 id="robustness-title">Robustness: rotation, shift, less data</h2>
+  <p class="ask">“What happens if a wafer comes in turned, or off-centre?”</p>
+  <p class="short"><strong>Turn it a quarter turn and our score doesn't move. Slide it and we lose much less than
+    anyone else.</strong> In-between angles cost everyone, us included.</p>
+
+  <figure class="figure" id="rotplay">
+    <h3 class="fig-title">Rotation playground</h3>
+    <div class="controls">
+      <label class="select">Test wafer <select id="rot-wafer" aria-label="Test wafer"></select></label>
+      <label class="slider">Angle <input type="range" id="rot-angle" min="0" max="345" step="15" value="0" aria-label="Rotation angle"> <output id="rot-out">0°</output></label>
+      <button type="button" class="btn" id="rot-play">▶ Spin</button>
+    </div>
+    <div class="rot-stage">
+      <div class="rot-wafer"><canvas id="rot-canvas" width="32" height="32" role="img" aria-label="The rotated 32 by 32 map the model sees"></canvas>
+        <p class="hint" id="rot-truth"></p></div>
+      <div class="probs" id="rot-probs"></div>
+    </div>
+    <p class="notice" id="rot-notice"></p>
+    <div id="rotation-chart" class="chart"></div>
+    <p class="legend"><span class="key"><i class="dot m-ours"></i>ours</span><span class="key"><i class="dot m-cnn"></i>textbook CNN</span><span class="key"><i class="dot m-forest"></i>random forest on pixels</span><span class="key"><i class="dot m-logistic"></i>logistic on pixels</span></p>
+    <figcaption id="rot-caption">Test wafers, nothing refit. We rotate the 32×32 maps. The curve is test macro-F1 for
+      every model at every angle; quarter turns are shaded.
+      <a class="src" data-src="experiments/phase4_analysis.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/phase4_analysis.json">phase4_analysis.json · rotation_test</a></figcaption>
+  </figure>
+
+  <div class="prose">
+    <p>At quarter turns we score the same as unturned (<span data-key="rotation.ours.6" data-f="f3">0.766</span>,
+      <span data-key="rotation.ours.12" data-f="f3">0.767</span>, <span data-key="rotation.ours.18" data-f="f3">0.764</span> against
+      <span data-key="rotation.ours.0" data-f="f3">0.765</span>). That's by design: rings don't care about direction, and
+      every filter is tried 4 ways. The pixel models lose 5 to 12 points, and even the CNN loses 2 to 4. In-between
+      angles are harder for everyone: a 45° turn on a square grid moves dies around, and we drop to
+      <span data-key="rotation.ours.3" data-f="f3">0.673</span>.</p>
+    <p>One honest detail: quarter turns are <em>nearly</em> exact, not perfectly exact. The whitening step learns an
+      average patch that isn't perfectly symmetric, so a 90° turn moves the features a tiny bit (the score moves by
+      about <span data-key="derived.quarter_move" data-f="af3">0.002</span>). The CNN is still higher than us at every angle. What we win on is how <em>little we drop</em>, not
+      the score itself.</p>
+  </div>
+
+  <figure class="figure">
+    <h3 class="fig-title">Slide a wafer 3 pixels: we lose <span data-key="derived.shift3_loss.ours" data-f="af2">0.08</span>, pixel models lose up to <span data-key="derived.shift3_loss.logistic" data-f="af2">0.41</span></h3>
+    <div id="shift-chart" class="chart"></div>
+    <p class="legend"><span class="key"><i class="dot m-ours"></i>ours</span><span class="key"><i class="dot m-cnn"></i>textbook CNN</span><span class="key"><i class="dot m-forest"></i>random forest</span><span class="key"><i class="dot m-logistic"></i>logistic</span></p>
+    <figcaption>Each point averages four directions. At 3 pixels: ours <span data-key="shift.ours.3" data-f="f3">0.683</span>,
+      CNN <span data-key="shift.cnn.3" data-f="f3">0.624</span>, forest <span data-key="shift.forest.3" data-f="f3">0.425</span>,
+      logistic <span data-key="shift.logistic.3" data-f="f3">0.150</span>. To the pixel models every pixel is a fixed slot.
+      <a class="src" data-src="experiments/phase4_analysis.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/phase4_analysis.json">phase4_analysis.json · shift_test</a></figcaption>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">With 5% of the lots we already beat logistic regression on pixels trained on 100%</h3>
+    <div id="learning-chart" class="chart"></div>
+    <p class="legend"><span class="key"><i class="dot m-ours"></i>ours</span><span class="key"><i class="dot m-logistic"></i>logistic regression on pixels</span></p>
+    <figcaption>Validation macro-F1 when training on a share of the training lots (filters refit every time). The
+      curve flattens after 25%, so more of the same data would help only a little. At 1%, the random draws happened to
+      contain no Near-full wafers, so the 1% point understates what that much data can do. We kept the draws random on
+      purpose. Note it's <em>logistic</em> on pixels: the forest reaches
+      <span data-key="validation.B2-flat-random-forest.macro_f1" data-f="f3">0.696</span> on 100%, more than our 5% point.
+      <a class="src" data-src="experiments/phase4_analysis.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/phase4_analysis.json">phase4_analysis.json · learning_validation</a></figcaption>
+  </figure>
+</section>
+
+<!-- S11 ================================================================== -->
+<section class="sec" id="errors" aria-labelledby="errors-title">
+  <p class="sec-no">S11 · Errors</p>
+  <h2 id="errors-title">Where it goes wrong</h2>
+  <p class="ask">“Which wafers does it get wrong, and do the mistakes make sense?”</p>
+  <p class="short"><strong>Scratch and Loc are each other's favourite mistake.</strong> Big, wide patterns are where
+    we do best.</p>
+
+  <figure class="figure">
+    <div class="cm-layout">
+      <div>
+        <div class="cm" id="cm" role="group" aria-label="Confusion matrix. Rows are true classes, columns are predictions."></div>
+        <p class="hint">Rows: true label. Columns: predicted. Numbers are the percent of each row. Click any cell.</p>
+      </div>
+      <div class="cm-panel">
+        <h3 class="fig-title" id="cm-title"></h3>
+        <p class="readout" id="cm-text" aria-live="polite"></p>
+        <div class="cm-examples" id="cm-examples"></div>
+      </div>
+    </div>
+    <figcaption id="cm-caption">Locked test set, main model. Example wafers are the 32×32 maps the model saw.
+      <a class="src" data-src="experiments/final_test_predictions.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/final_test_predictions.csv">final_test_predictions.csv</a></figcaption>
+  </figure>
+
+  <div class="prose">
+    <p>Our two weak classes, Scratch and Loc, are each other's favourite mistake. Through a 5×5 window, a short scratch
+      and a small blob look alike, and the 32×32 shrink can break a thin line into dashes (S4). Clean wafers with a few
+      specks in a row also get called Scratch. The big, wide patterns (Edge-Ring, Near-full, Random, Center) are where
+      we do best.</p>
+  </div>
+
+  <figure class="figure">
+    <h3 class="fig-title">The 12 most confident mistakes</h3>
+    <div id="mistakes" class="mistakes"></div>
+    <figcaption>These are the model's <em>most confident</em> mistakes. Looking at them, some we'd argue about
+      ourselves. Remember <span data-key="split.duplicates.maps_with_conflicting_labels" data-f="int">3</span> maps in the
+      data carry two different labels, so the labels aren't perfect either.
+      <a class="src" data-src="experiments/phase4_analysis.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/phase4_analysis.json">phase4_analysis.json · mistakes_test</a></figcaption>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">How well each class is ranked (PR-AUC)</h3>
+    <div id="prauc" class="ichart compact"></div>
+    <figcaption>1.0 means every wafer of that class is ranked above every other wafer.
+      <a class="src" data-src="experiments/final_test.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/final_test.json">final_test.json · pr_auc</a></figcaption>
+  </figure>
+</section>
+
+<!-- S12 ================================================================== -->
+<section class="sec" id="cnn" aria-labelledby="cnn-title">
+  <p class="sec-no">S12 · Versus a textbook CNN <span class="badge">post-hoc reference</span></p>
+  <h2 id="cnn-title">Versus a textbook CNN</h2>
+  <p class="ask">“So is backprop worth it?”</p>
+  <p class="short"><strong>For raw score, yes: the CNN wins clearly.</strong> We get about
+    <span data-key="cnn.score_ratio" data-f="pct">92%</span> of its macro-F1 with
+    <span data-key="cnn.learned_ratio" data-f="x">48×</span> fewer learned numbers, and steadier behaviour when wafers are
+    turned or slid.</p>
+
+  <div class="prose">
+    <p>To see how far a no-backprop model gets, we also trained a plain textbook CNN with backprop: 3 × (3×3
+      convolution + ReLU + max-pool) with 16, 32 and 64 channels, a 128-unit dense layer, dropout 0.3, Adam, class
+      weights. Same inputs (fail map + mask), same split. Its number of training rounds
+      (<span data-key="cnn.epoch_picked" data-f="int">29</span> of a maximum <span data-key="cnn.max_epochs" data-f="int">30</span>)
+      was picked on the validation folds, and it was scored on the test set once.</p>
+  </div>
+
+  <figure class="figure">
+    <div class="table-wrap"><table class="data">
+      <thead><tr><th></th><th>Ours (no backprop)</th><th>Textbook CNN</th></tr></thead>
+      <tbody>
+        <tr><td>Test macro-F1</td><td><span data-key="test.models.ours.macro_f1.0" data-f="f3">0.765</span> <small>(<span data-key="test.models.ours.macro_f1.1" data-f="f3">0.744</span> to <span data-key="test.models.ours.macro_f1.2" data-f="f3">0.783</span>)</small></td><td><b data-key="test.models.cnn.macro_f1.0" data-f="f3">0.829</b> <small>(<span data-key="test.models.cnn.macro_f1.1" data-f="f3">0.812</span> to <span data-key="test.models.cnn.macro_f1.2" data-f="f3">0.843</span>)</small></td></tr>
+        <tr><td>Test accuracy</td><td data-key="test.models.ours.accuracy" data-f="f3">0.820</td><td><b data-key="test.models.cnn.accuracy" data-f="f3">0.884</b></td></tr>
+        <tr><td>Learned numbers</td><td><b data-key="cnn.learned_numbers.ours" data-f="int">3,242</b></td><td data-key="cnn.learned_numbers.textbook CNN" data-f="int">155,801</td></tr>
+        <tr><td>Score at 90 / 180 / 270°</td><td><b><span data-key="rotation.ours.6" data-f="f3">0.766</span> / <span data-key="rotation.ours.12" data-f="f3">0.767</span> / <span data-key="rotation.ours.18" data-f="f3">0.764</span></b> (same as 0°)</td><td><span data-key="rotation.cnn.6" data-f="f3">0.793</span> / <span data-key="rotation.cnn.12" data-f="f3">0.807</span> / <span data-key="rotation.cnn.18" data-f="f3">0.795</span></td></tr>
+        <tr><td>Score at a 3-pixel shift</td><td><b data-key="shift.ours.3" data-f="f3">0.683</b></td><td data-key="shift.cnn.3" data-f="f3">0.624</td></tr>
+        <tr><td>Uses backprop</td><td>no</td><td>yes</td></tr>
+      </tbody>
+    </table></div>
+    <figcaption><a class="src" data-src="experiments/reference_cnn.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/reference_cnn.json">reference_cnn.json</a>
+      <a class="src" data-src="experiments/reference_cnn_comparison.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/reference_cnn_comparison.csv">reference_cnn_comparison.csv</a></figcaption>
+  </figure>
+
+  <figure class="figure">
+    <h3 class="fig-title">The CNN's validation score by training round</h3>
+    <div id="epoch-chart" class="chart"></div>
+    <figcaption>The best round was <span data-key="cnn.epoch_picked" data-f="int">29</span> of
+      <span data-key="cnn.max_epochs" data-f="int">30</span>, so it might do a little better with more training. We left
+      the cap as planned. Training took <span data-key="cnn.train_seconds" data-f="int">273</span> seconds on all training
+      wafers. The validation number is slightly optimistic, because the round was picked on the same folds.</figcaption>
+  </figure>
+
+  <div class="prose">
+    <p><strong>The CNN wins on score, clearly</strong> (gap <span data-key="test.gaps.cnn.2" data-f="af3">0.047</span> to
+      <span data-key="test.gaps.cnn.1" data-f="af3">0.081</span>). Where it gains most: Loc
+      (<span data-key="test.per_class.cnn.Loc.f1" data-f="f3">0.754</span> vs <span data-key="test.per_class.ours.Loc.f1" data-f="f3">0.560</span>)
+      and Donut (<span data-key="test.per_class.cnn.Donut.f1" data-f="f3">0.856</span> vs
+      <span data-key="test.per_class.ours.Donut.f1" data-f="f3">0.695</span>). We're ahead on Near-full
+      (<span data-key="test.per_class.ours.Near-full.f1" data-f="f3">0.897</span> vs <span data-key="test.per_class.cnn.Near-full.f1" data-f="f3">0.847</span>).</p>
+  </div>
+</section>
+
+<!-- S13 ================================================================== -->
+<section class="sec" id="denoise" aria-labelledby="denoise-title">
+  <p class="sec-no">S13 · The denoise trade-off <span class="badge">post-hoc: asked for after the final test, not used to pick a model</span></p>
+  <h2 id="denoise-title">The denoise trade-off</h2>
+  <p class="ask">“Median cleanup scored higher on validation. Does it hold on the test set, and what does it cost?”</p>
+  <p class="short"><strong>It holds, and it costs scratches.</strong> Median wins on average and catches fewer real
+    scratches.</p>
+
+  <figure class="figure">
+    <div class="controls"><div class="chips" id="denoise-pick" role="group" aria-label="Highlight a class"></div></div>
+    <div class="table-wrap"><table class="data" id="denoise-table"></table></div>
+    <div class="btn-row"><button type="button" class="btn" id="denoise-show">See a scratch vanish in the stepper ↑</button></div>
+    <figcaption>Gap in macro-F1, median minus ours: <span data-key="denoise.gap.0" data-f="sf3">+0.033</span> (95% range
+      <span data-key="denoise.gap.1" data-f="sf3">+0.016</span> to <span data-key="denoise.gap.2" data-f="sf3">+0.051</span>).
+      <a class="src" data-src="experiments/test_denoise_comparison.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/test_denoise_comparison.csv">test_denoise_comparison.csv</a></figcaption>
+  </figure>
+
+  <div class="prose">
+    <p>Median wins on average, mostly by cleaning up Loc and clean wafers. But it erases thin lines: it catches
+      <span data-key="denoise.median.Scratch.recall" data-f="per100">60</span> of every 100 real scratches instead of
+      <span data-key="denoise.isolated.Scratch.recall" data-f="per100">71</span>. Edge-Ring and Random drop too.</p>
+    <p><strong>Which is better depends on what a factory cares about most.</strong> If missing a scratch is
+      expensive, isolated. If the overall average matters more, median. We kept our planned model, because we picked
+      it before the test and only score the test once.</p>
+  </div>
+</section>
+
+<!-- S14 ================================================================== -->
+<section class="sec" id="real-fab" aria-labelledby="real-title">
+  <p class="sec-no">S14 · What happens in a real fab</p>
+  <h2 id="real-title">What happens in a real fab</h2>
+  <p class="ask">“Your test set is mostly defects. A real line is mostly clean wafers. Does that change anything?”</p>
+  <p class="short"><strong>Recall stays the same, precision drops a lot.</strong> More clean wafers means more chances
+    for a false alarm.</p>
+
+  <div class="prose">
+    <p>Our test set is <span data-key="real_world.test_share.8" data-f="pct">27%</span> clean wafers. Among real labeled
+      wafers, clean ones are <span data-key="real_world.real_share.8" data-f="pct">85%</span>. We didn't retrain anything.
+      We took the model's test mistake rates (of the real Scratch wafers, what share went where) and replayed them at
+      the real class mix.</p>
+  </div>
+
+  <figure class="figure" id="real-figure">
+    <h3 class="fig-title">Slide from our test mix to a real fab's mix</h3>
+    <div class="real-slider">
+      <span>our test mix</span>
+      <input type="range" id="real-t" min="0" max="100" step="1" value="0" aria-label="Class mix, from our test set to the real labeled mix">
+      <span>real labeled mix</span>
+    </div>
+    <div class="real-readout">
+      <div class="big"><b id="real-clean"></b><span>clean wafers</span></div>
+      <div class="big"><b id="real-macro"></b><span>macro-F1</span></div>
+      <div class="big"><b id="real-scratch"></b><span>Scratch alarms that are real</span></div>
+    </div>
+    <div id="real-bars" class="ichart"></div>
+    <p class="notice" id="real-notice"></p>
+    <figcaption>Precision for class j = share<sub>j</sub> × rate[j][j] ÷ Σ<sub>i</sub> share<sub>i</sub> × rate[i][j],
+      where rate[i][j] is the share of true class i that we called j. Every class share is a straight blend between
+      the two ends. <a class="src" data-src="experiments/real_world_precision.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/real_world_precision.csv">real_world_precision.csv</a></figcaption>
+  </figure>
+
+  <figure class="figure">
+    <div class="table-wrap"><table class="data">
+      <thead><tr><th></th><th>Our test mix</th><th>Real labeled mix</th></tr></thead>
+      <tbody>
+        <tr class="row-strong"><td>Macro-F1</td><td data-key="real_world.table.macro avg.F1 on test" data-f="f3">0.765</td><td data-key="real_world.table.macro avg.F1 at real shares" data-f="f3">0.646</td></tr>
+        <tr><td>Scratch precision</td><td data-key="real_world.table.Scratch.precision on test" data-f="f3">0.267</td><td><b data-key="real_world.table.Scratch.precision at real shares" data-f="f3">0.055</b> (about 1 in <span data-key="real_world.table.Scratch.precision at real shares" data-f="inv">18</span> Scratch alarms is real)</td></tr>
+        <tr><td>Center precision</td><td data-key="real_world.table.Center.precision on test" data-f="f3">0.882</td><td data-key="real_world.table.Center.precision at real shares" data-f="f3">0.576</td></tr>
+        <tr><td>Edge-Loc precision</td><td data-key="real_world.table.Edge-Loc.precision on test" data-f="f3">0.788</td><td data-key="real_world.table.Edge-Loc.precision at real shares" data-f="f3">0.358</td></tr>
+        <tr><td>Loc precision</td><td data-key="real_world.table.Loc.precision on test" data-f="f3">0.673</td><td data-key="real_world.table.Loc.precision at real shares" data-f="f3">0.265</td></tr>
+        <tr><td>Edge-Ring precision</td><td data-key="real_world.table.Edge-Ring.precision on test" data-f="f3">0.978</td><td data-key="real_world.table.Edge-Ring.precision at real shares" data-f="f3">0.917</td></tr>
+        <tr><td>Clean wafers flagged as some defect</td><td data-key="real_world.clean_flagged" data-f="pct">19%</td><td><span data-key="real_world.clean_flagged" data-f="pct">19%</span> (doesn't depend on the mix)</td></tr>
+      </tbody>
+    </table></div>
+  </figure>
+
+  <div class="takeaway">
+    <p>So this model is a good <strong>first filter in front of a human</strong>, not a replacement for one. It throws
+      away most clean wafers and catches most defects, and a person checks what it flags.</p>
+  </div>
+</section>
+
+<!-- S15 ================================================================== -->
+<section class="sec" id="limits" aria-labelledby="limits-title">
+  <p class="sec-no">S15 · Limitations</p>
+  <h2 id="limits-title">Limitations, and what we do NOT claim</h2>
+  <p class="ask">“Where would you not trust this?”</p>
+  <p class="short"><strong>Ten places.</strong> Each one is a short card; several link to the section with the
+    evidence.</p>
+
+  <ol class="limits">
+    <li><b>Our test has far more defects than a real fab.</b> Precision drops a lot at the real mix: macro-F1
+      <span data-key="real_world.table.macro avg.F1 at real shares" data-f="f3">0.646</span> instead of
+      <span data-key="test.models.ours.macro_f1.0" data-f="f3">0.765</span> (<a href="#real-fab">S14</a>).</li>
+    <li><b>Scratch and Loc are weak</b> (F1 <span data-key="test.per_class.ours.Scratch.f1" data-f="f3">0.388</span> and
+      <span data-key="test.per_class.ours.Loc.f1" data-f="f3">0.560</span>). They look alike through 5×5 windows (<a href="#errors">S11</a>).</li>
+    <li><b>Rotation is nearly exact at quarter turns, not perfectly exact</b> (about ±<span data-key="derived.quarter_move" data-f="af3">0.002</span>). In-between angles cost up
+      to about <span data-key="derived.worst_angle_cost" data-f="af2">0.09</span>, worst at 45° (<a href="#robustness">S10</a>).</li>
+    <li><b>The learned filters aren't why it works.</b> Random filters did better on validation (<a href="#validation">S8</a>).</li>
+    <li><b>Labels have some noise</b> (<span data-key="split.duplicates.maps_with_conflicting_labels" data-f="int">3</span>
+      identical maps with conflicting labels), and <b><span data-key="audit.unlabeled_share" data-f="pct">79%</span> of the
+      data has no label</b>, so we don't know how the model behaves on the unlabeled majority.</li>
+    <li><b>One dataset, one source.</b> We don't claim it works on another factory's maps without checking.</li>
+    <li><b>The 1% learning-curve point</b> has no Near-full wafers (<a href="#robustness">S10</a>).</li>
+    <li><b>Near-full and Donut have few test wafers</b> (<span data-key="split.test_class_counts.Near-full" data-f="int">26</span>
+      and <span data-key="split.test_class_counts.Donut" data-f="int">92</span>), so their scores have wide error bars.</li>
+    <li><b>We used the test set more than once, in a labelled way.</b> The main result was scored once; the median
+      comparison and the CNN came after and are marked post-hoc. Neither was used to change the main model.</li>
+    <li><b>A pattern is not a cause.</b> The model recognises shapes. It says nothing about which machine or step caused
+      them; we have no process data.</li>
+  </ol>
+
+  <div class="callout">
+    <h3>What we'd do next</h3>
+    <ul>
+      <li>Combine the validation winners (K = 64, median cleanup) and re-check on validation.</li>
+      <li>Try stacking two filter layers.</li>
+      <li>Use class-guaranteed sampling for the learning curve.</li>
+      <li>Test on another wafer dataset.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- S16 ================================================================== -->
+<section class="sec" id="run" aria-labelledby="run-title">
+  <p class="sec-no">S16 · Reproducibility</p>
+  <h2 id="run-title">Run it yourself</h2>
+  <p class="ask">“Can I get your numbers on my own machine?”</p>
+  <p class="short"><strong>Yes: one download, one install, then one command per step.</strong></p>
+
+  <div class="prose">
+    <ul class="plain">
+      <li>Code: <a id="repo-link" class="ext" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier">the repository on GitHub</a>. This page's numbers were exported from
+        commit <a data-commit="head" class="commit" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/dc48688">dc48688</a>.</li>
+      <li>Data: download <code>LSWMD.pkl</code> from <a href="https://www.kaggle.com/datasets/qingyi/wm811k-wafer-map">WM-811K on
+        Kaggle</a> and put it at <code>data/LSWMD.pkl</code>. It's gitignored and we don't re-host it.</li>
+      <li>Python 3.13, with every package version pinned.</li>
+      <li>The split: <a class="src" data-src="splits/project_splits.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/splits/project_splits.csv">splits/project_splits.csv</a> has every wafer's
+        split, fold and group, so you can check our split yourself.</li>
+    </ul>
+  </div>
+  <div class="cmd"><pre class="code"><code>python -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install -r requirements.txt</code></pre><button type="button" class="copy">Copy</button></div>
+
+  <figure class="figure">
+    <div class="table-wrap"><table class="data text cmds" id="cmd-table">
+      <thead><tr><th>Command</th><th>What it does</th><th>Time</th></tr></thead>
+      <tbody>
+        <tr><td><code>python main.py verify</code></td><td>Checks the dataset loads with the expected row counts</td><td>~1 min</td></tr>
+        <tr><td><code>python main.py audit</code></td><td>Data audit, builds the <span data-key="audit.subset_rows" data-f="int">35,519</span>-wafer sample</td><td>~1 min</td></tr>
+        <tr><td><code>python main.py splits</code></td><td>Makes and freezes the lot-grouped split</td><td>~1 min</td></tr>
+        <tr><td><code>python main.py check</code></td><td>21 leak checks on the split</td><td>seconds</td></tr>
+        <tr><td><code>python main.py baselines</code></td><td>B0 to B3 on validation</td><td>~2 min</td></tr>
+        <tr><td><code>python main.py pipeline</code></td><td>3 filter types × 4 classifiers on validation</td><td>~17 min</td></tr>
+        <tr><td><code>python main.py tuning</code></td><td>7 one-change ablations on validation</td><td>~40 min</td></tr>
+        <tr><td><code>python main.py filter-check</code></td><td>Paired k-means vs random filters, validation</td><td>~10 min</td></tr>
+        <tr class="row-strong"><td><code>python main.py final-test</code></td><td>The one test run. Refuses to run twice</td><td>~2.5 min</td></tr>
+        <tr><td><code>python main.py analysis</code></td><td>Rotation, shift, learning curve, errors, filters</td><td>~32 min</td></tr>
+        <tr><td><code>python main.py posthoc-median</code></td><td>Post-hoc median vs isolated cleanup on test</td><td>~1.5 min</td></tr>
+        <tr><td><code>python main.py reference-cnn</code></td><td>Textbook CNN, rounds picked on validation, test once</td><td>~25 min</td></tr>
+        <tr><td><code>python main.py real-world-precision</code></td><td>Precision replayed at real class shares</td><td>seconds</td></tr>
+        <tr><td><code>python main.py site-data</code></td><td>Exports the wafers and numbers this page shows</td><td>~4 min</td></tr>
+      </tbody>
+    </table></div>
+    <figcaption>Click a command to copy it. Every logged result is a row in
+      <a class="src" data-src="experiments/log.csv" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/experiments/log.csv">experiments/log.csv</a>.</figcaption>
+  </figure>
+
+  <ul class="plain">
+    <li>Seeds are fixed (42). k-means uses several CPU threads, so a rerun can move a score by about 0.001, much less
+      than the fold spread.</li>
+    <li><code>final-test</code> and <code>reference-cnn</code> refuse to run twice. To reproduce from zero, delete
+      <code>experiments/final_test.json</code> and <code>experiments/reference_cnn.json</code> first.</li>
+    <li>No API keys, passwords or private data anywhere in the project.</li>
+  </ul>
+</section>
+
+<!-- S17 ================================================================== -->
+<section class="sec" id="team" aria-labelledby="team-title">
+  <p class="sec-no">S17 · Team</p>
+  <h2 id="team-title">Team, contributions, AI disclosure</h2>
+
+  <div class="team">
+    <article class="person">
+      <h3>Rishi Kumar</h3>
+      <dl>
+        <dt>What I built</dt><dd class="todo">To be written by Rishi. The git history shows: data audit, split and leak
+          checker, baseline fixes, final test, robustness analysis, textbook CNN, real-world precision.</dd>
+        <dt>One key choice I made and why</dt><dd class="todo">To be written by Rishi.</dd>
+        <dt>How I evaluated it</dt><dd class="todo">To be written by Rishi.</dd>
+        <dt>One limitation I own</dt><dd class="todo">To be written by Rishi.</dd>
+        <dt>A small change I can reason about</dt><dd class="todo">To be written by Rishi.</dd>
+      </dl>
+    </article>
+    <article class="person">
+      <h3>Satyam Suman</h3>
+      <dl>
+        <dt>What I built</dt><dd class="todo">To be written by Satyam. The git history shows: the CNN-style pipeline
+          (<code>src/preprocessing.py</code>, <code>src/features.py</code>, <code>src/models.py</code>), the filter ×
+          classifier grid and the 7 ablations, and this website.</dd>
+        <dt>One key choice I made and why</dt><dd class="todo">To be written by Satyam.</dd>
+        <dt>How I evaluated it</dt><dd class="todo">To be written by Satyam.</dd>
+        <dt>One limitation I own</dt><dd class="todo">To be written by Satyam.</dd>
+        <dt>A small change I can reason about</dt><dd class="todo">To be written by Satyam.</dd>
+      </dl>
+    </article>
+  </div>
+  <p class="prose-note">How we used AI tools is recorded in the
+    <a class="src" data-src="AI_DISCLOSURE.md" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/dc48688/AI_DISCLOSURE.md">AI use disclosure</a>.</p>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <p><strong>About this page.</strong> Every number on it is read from <code>site/data/</code>, which
+      <code>python main.py site-data</code> writes from the repository's <code>experiments/</code> and
+      <code>splits/</code> files; source chips link to them. Wafers in S1 to S4 are training wafers; test wafers appear
+      only in the results sections. Static page: no server, no tracking, no external requests. The four reference
+      photos in S1 come from Wikimedia Commons under their own licences, credited under each photo.</p>
+    <p id="selfcheck" class="selfcheck"></p>
+    <p><a id="footer-repo" class="ext" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier">Source code on GitHub</a> · built from commit <a data-commit="head" class="commit" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/dc48688">dc48688</a> ·
+      Data: <a href="https://www.kaggle.com/datasets/qingyi/wm811k-wafer-map">WM-811K</a>, Wu, Jang and Chen, IEEE
+      Transactions on Semiconductor Manufacturing, 2015. Data not redistributed.</p>
+  </div>
+</footer>
+
+<div class="tooltip" id="tooltip" role="status" hidden></div>
+<noscript><p class="noscript">The pictures and interactions on this page are drawn with JavaScript. The text and
+  tables still read fine without it.</p></noscript>
+<script src="data/results.js"></script>
+<script src="data/wafers.js"></script>
+<script src="data/model.js"></script>
+<script src="assets/core.js"></script>
+<script src="assets/story.js"></script>
+<script src="assets/model.js"></script>
+<script src="assets/results.js"></script>
+</body>
+</html>
