@@ -467,7 +467,10 @@
     });
     const failed = lines.filter((l) => !l.ok);
     window.waferSiteSelfCheck = () => lines;
-    $('#selfcheck').innerHTML = (failed.length
+    // The result used to be printed in the footer; it's still available from the console.
+    if (failed.length) console.warn('Self-check failed:', failed);
+    const box = $('#selfcheck');
+    if (box) box.innerHTML = (failed.length
       ? `<strong>Self-check failed:</strong> ${failed.map((l) => `${l.name} (${l.detail})`).join('; ')}.`
       : '<strong>Self-check passed.</strong> ') + ' ' + lines.filter((l) => l.ok).map((l) => l.detail).join(' ');
   }
