@@ -1,0 +1,12 @@
+{
+  "frozen_on": "2026-11-17",
+  "why": "Picked from validation only (Phase 3), before the test set was ever loaded. Default planned recipe: isolated-die denoise keeps 1-die-thin scratches (median dropped Scratch F1 0.373 -> 0.338), and K=32 keeps the feature vector small for browser inference.",
+  "recipe": {"method": "kmeans", "k": 32, "rotate": true, "pooling": "rings", "size": 32, "denoise": "isolated"},
+  "models": {
+    "final-logreg": "main model: calibrated logistic regression on the ring features",
+    "final-svm": "second model: linear SVM on the same features",
+    "B2-flat-logistic": "baseline: logistic regression on 1024 flat fail pixels",
+    "B2-flat-random-forest": "baseline: strongest Phase 2 model, random forest on 1024 flat fail pixels"
+  },
+  "bootstrap": {"rounds": 1000, "seed": 42, "unit": "test lot"}
+}

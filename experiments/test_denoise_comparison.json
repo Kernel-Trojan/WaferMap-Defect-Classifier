@@ -1,0 +1,8 @@
+{
+  "median_minus_isolated_macro_f1": [
+    0.03301984478507758,
+    0.016001731570237807,
+    0.05096532993323674
+  ],
+  "note": "Post-hoc second look at the test set, asked for after the final test. Primary stays isolated."
+}

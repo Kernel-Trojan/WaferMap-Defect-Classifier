@@ -1,0 +1,347 @@
+{
+  "rotation_test": {
+    "0": {
+      "final-logreg": 0.7653452840622068,
+      "B2-flat-logistic": 0.5602828624810177,
+      "B2-flat-random-forest": 0.7093917904178322
+    },
+    "15": {
+      "final-logreg": 0.7319484000105074,
+      "B2-flat-logistic": 0.44493878396952685,
+      "B2-flat-random-forest": 0.5779164949515109
+    },
+    "30": {
+      "final-logreg": 0.7136069942361511,
+      "B2-flat-logistic": 0.46197334979645466,
+      "B2-flat-random-forest": 0.5893659755137386
+    },
+    "45": {
+      "final-logreg": 0.672840218438407,
+      "B2-flat-logistic": 0.4302142787899597,
+      "B2-flat-random-forest": 0.5236962644289742
+    },
+    "60": {
+      "final-logreg": 0.7247088289880484,
+      "B2-flat-logistic": 0.41586997615283877,
+      "B2-flat-random-forest": 0.5499283690597502
+    },
+    "75": {
+      "final-logreg": 0.732114903946683,
+      "B2-flat-logistic": 0.4195492441335244,
+      "B2-flat-random-forest": 0.5810268100520601
+    },
+    "90": {
+      "final-logreg": 0.7664985213197,
+      "B2-flat-logistic": 0.4434379339334719,
+      "B2-flat-random-forest": 0.6382481949102806
+    },
+    "105": {
+      "final-logreg": 0.7304006080928528,
+      "B2-flat-logistic": 0.4415045335806485,
+      "B2-flat-random-forest": 0.5854188239042443
+    },
+    "120": {
+      "final-logreg": 0.7137127538969827,
+      "B2-flat-logistic": 0.45508744257043354,
+      "B2-flat-random-forest": 0.5748794323282617
+    },
+    "135": {
+      "final-logreg": 0.6763262281212203,
+      "B2-flat-logistic": 0.4151559046581213,
+      "B2-flat-random-forest": 0.5212525525531305
+    },
+    "150": {
+      "final-logreg": 0.7239518485486465,
+      "B2-flat-logistic": 0.43198687959368987,
+      "B2-flat-random-forest": 0.5509075337029247
+    },
+    "165": {
+      "final-logreg": 0.7324321445617045,
+      "B2-flat-logistic": 0.3911835501592148,
+      "B2-flat-random-forest": 0.5923650592128641
+    },
+    "180": {
+      "final-logreg": 0.766830251847976,
+      "B2-flat-logistic": 0.4368828658094568,
+      "B2-flat-random-forest": 0.6599596331814869
+    },
+    "195": {
+      "final-logreg": 0.7330076743684844,
+      "B2-flat-logistic": 0.43387037446805465,
+      "B2-flat-random-forest": 0.5543187476399817
+    },
+    "210": {
+      "final-logreg": 0.714408383138103,
+      "B2-flat-logistic": 0.4023069880598146,
+      "B2-flat-random-forest": 0.5798624607203526
+    },
+    "225": {
+      "final-logreg": 0.6725113573551051,
+      "B2-flat-logistic": 0.43252367387767415,
+      "B2-flat-random-forest": 0.5265875733494263
+    },
+    "240": {
+      "final-logreg": 0.7261210543863228,
+      "B2-flat-logistic": 0.4592458164753489,
+      "B2-flat-random-forest": 0.5757853151577552
+    },
+    "255": {
+      "final-logreg": 0.73232715417773,
+      "B2-flat-logistic": 0.3938486606758359,
+      "B2-flat-random-forest": 0.5863766297739496
+    },
+    "270": {
+      "final-logreg": 0.7636689406756281,
+      "B2-flat-logistic": 0.4518246523299546,
+      "B2-flat-random-forest": 0.6623436995997327
+    },
+    "285": {
+      "final-logreg": 0.7318736755146522,
+      "B2-flat-logistic": 0.4144262817992137,
+      "B2-flat-random-forest": 0.5922614680061206
+    },
+    "300": {
+      "final-logreg": 0.7129603349671342,
+      "B2-flat-logistic": 0.4399907215301464,
+      "B2-flat-random-forest": 0.5879064887795783
+    },
+    "315": {
+      "final-logreg": 0.674713743772444,
+      "B2-flat-logistic": 0.4009450204058157,
+      "B2-flat-random-forest": 0.5271768831832827
+    },
+    "330": {
+      "final-logreg": 0.7245716937465091,
+      "B2-flat-logistic": 0.44953255864575653,
+      "B2-flat-random-forest": 0.5594353143251711
+    },
+    "345": {
+      "final-logreg": 0.7332323848305979,
+      "B2-flat-logistic": 0.40340329937243535,
+      "B2-flat-random-forest": 0.5996529562102644
+    }
+  },
+  "shift_test": {
+    "0": {
+      "final-logreg": 0.7653452840622068,
+      "B2-flat-logistic": 0.5602828624810177,
+      "B2-flat-random-forest": 0.7093917904178322
+    },
+    "1": {
+      "final-logreg": 0.7546824077174988,
+      "B2-flat-logistic": 0.32193135275727297,
+      "B2-flat-random-forest": 0.5276912800699161
+    },
+    "2": {
+      "final-logreg": 0.7290777127905115,
+      "B2-flat-logistic": 0.18803630487067685,
+      "B2-flat-random-forest": 0.4800878922585251
+    },
+    "3": {
+      "final-logreg": 0.6833052687779735,
+      "B2-flat-logistic": 0.15022945088669287,
+      "B2-flat-random-forest": 0.4249012719983366
+    }
+  },
+  "learning_validation": {
+    "0.01": {
+      "final-logreg": 0.5156941507095915,
+      "B2-flat-logistic": 0.4045099687663775
+    },
+    "0.05": {
+      "final-logreg": 0.6812057733772305,
+      "B2-flat-logistic": 0.48651126916560683
+    },
+    "0.1": {
+      "final-logreg": 0.7116558198933998,
+      "B2-flat-logistic": 0.5107342587056967
+    },
+    "0.25": {
+      "final-logreg": 0.7347664891914754,
+      "B2-flat-logistic": 0.5332842588410956
+    },
+    "0.5": {
+      "final-logreg": 0.746733182400992,
+      "B2-flat-logistic": 0.5699412446075663
+    },
+    "1.0": {
+      "final-logreg": 0.7543730895747517,
+      "B2-flat-logistic": 0.5788056765381506
+    }
+  },
+  "confusion_test": {
+    "Center": {
+      "Center": 0.8469520103761349,
+      "Donut": 0.020752269779507133,
+      "Edge-Loc": 0.014267185473411154,
+      "Edge-Ring": 0.0012970168612191958,
+      "Loc": 0.038910505836575876,
+      "Near-full": 0.0,
+      "Random": 0.00648508430609598,
+      "Scratch": 0.014267185473411154,
+      "none": 0.057068741893644616
+    },
+    "Donut": {
+      "Center": 0.0,
+      "Donut": 0.8913043478260869,
+      "Edge-Loc": 0.0,
+      "Edge-Ring": 0.0,
+      "Loc": 0.043478260869565216,
+      "Near-full": 0.0,
+      "Random": 0.021739130434782608,
+      "Scratch": 0.043478260869565216,
+      "none": 0.0
+    },
+    "Edge-Loc": {
+      "Center": 0.007929515418502203,
+      "Donut": 0.007929515418502203,
+      "Edge-Loc": 0.7788546255506608,
+      "Edge-Ring": 0.028193832599118944,
+      "Loc": 0.038766519823788544,
+      "Near-full": 0.001762114537444934,
+      "Random": 0.014977973568281937,
+      "Scratch": 0.051982378854625554,
+      "none": 0.06960352422907488
+    },
+    "Edge-Ring": {
+      "Center": 0.0,
+      "Donut": 0.0,
+      "Edge-Loc": 0.0358337314859054,
+      "Edge-Ring": 0.9507883420926899,
+      "Loc": 0.0009555661729574773,
+      "Near-full": 0.0,
+      "Random": 0.00047778308647873863,
+      "Scratch": 0.010033444816053512,
+      "none": 0.0019111323459149545
+    },
+    "Loc": {
+      "Center": 0.058333333333333334,
+      "Donut": 0.043055555555555555,
+      "Edge-Loc": 0.0763888888888889,
+      "Edge-Ring": 0.0,
+      "Loc": 0.4791666666666667,
+      "Near-full": 0.0,
+      "Random": 0.009722222222222222,
+      "Scratch": 0.23055555555555557,
+      "none": 0.10277777777777777
+    },
+    "Near-full": {
+      "Center": 0.0,
+      "Donut": 0.0,
+      "Edge-Loc": 0.0,
+      "Edge-Ring": 0.0,
+      "Loc": 0.0,
+      "Near-full": 1.0,
+      "Random": 0.0,
+      "Scratch": 0.0,
+      "none": 0.0
+    },
+    "Random": {
+      "Center": 0.0,
+      "Donut": 0.019230769230769232,
+      "Edge-Loc": 0.004807692307692308,
+      "Edge-Ring": 0.004807692307692308,
+      "Loc": 0.009615384615384616,
+      "Near-full": 0.019230769230769232,
+      "Random": 0.9423076923076923,
+      "Scratch": 0.0,
+      "none": 0.0
+    },
+    "Scratch": {
+      "Center": 0.017777777777777778,
+      "Donut": 0.0,
+      "Edge-Loc": 0.04,
+      "Edge-Ring": 0.0044444444444444444,
+      "Loc": 0.13333333333333333,
+      "Near-full": 0.0,
+      "Random": 0.0,
+      "Scratch": 0.7111111111111111,
+      "none": 0.09333333333333334
+    },
+    "none": {
+      "Center": 0.01627670396744659,
+      "Donut": 0.001017293997965412,
+      "Edge-Loc": 0.04425228891149542,
+      "Edge-Ring": 0.004577822990844354,
+      "Loc": 0.028484231943031537,
+      "Near-full": 0.0,
+      "Random": 0.001525940996948118,
+      "Scratch": 0.09104781281790437,
+      "none": 0.8128179043743642
+    }
+  },
+  "mistakes_test": [
+    {
+      "source_index": 782642,
+      "true": "Loc",
+      "predicted": "Scratch",
+      "confidence": 0.9192254961319183
+    },
+    {
+      "source_index": 108793,
+      "true": "Loc",
+      "predicted": "Scratch",
+      "confidence": 0.8779706989309314
+    },
+    {
+      "source_index": 763163,
+      "true": "Scratch",
+      "predicted": "Loc",
+      "confidence": 0.8953733655437578
+    },
+    {
+      "source_index": 650942,
+      "true": "Scratch",
+      "predicted": "Loc",
+      "confidence": 0.8458531281132773
+    },
+    {
+      "source_index": 759596,
+      "true": "Loc",
+      "predicted": "none",
+      "confidence": 0.9691892084395148
+    },
+    {
+      "source_index": 690181,
+      "true": "Loc",
+      "predicted": "none",
+      "confidence": 0.8521327012684505
+    },
+    {
+      "source_index": 725583,
+      "true": "Scratch",
+      "predicted": "none",
+      "confidence": 0.9334125229638182
+    },
+    {
+      "source_index": 776114,
+      "true": "Scratch",
+      "predicted": "none",
+      "confidence": 0.8640789492541717
+    },
+    {
+      "source_index": 645574,
+      "true": "none",
+      "predicted": "Scratch",
+      "confidence": 0.9607375810435349
+    },
+    {
+      "source_index": 771840,
+      "true": "none",
+      "predicted": "Scratch",
+      "confidence": 0.9386258149457879
+    },
+    {
+      "source_index": 802818,
+      "true": "Loc",
+      "predicted": "Edge-Loc",
+      "confidence": 0.9636223073667515
+    },
+    {
+      "source_index": 253894,
+      "true": "Loc",
+      "predicted": "Edge-Loc",
+      "confidence": 0.961857017943744
+    }
+  ]
+}

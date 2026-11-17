@@ -32,23 +32,13 @@ def expected_calibration_error(probs, labels, classes, bins=15):
     return error
 
 
-def rotate_map(raw, angle, size=32):
-    """Turn a raw wafer map by `angle` degrees and shrink it to size x size, in one nearest-die step.
+def rotate_map(image, angle):
+    """Turn an already-prepared 32x32 map by `angle` degrees, picking the nearest die (no blending).
 
-    Doing both at once means 0 degrees gives exactly the same picture as plain resizing.
-    Dies that turn off the edge of the grid are dropped (0 = outside the wafer).
+    We rotate after preprocessing, so the denoising step sees the same wafer at every angle.
+    Quarter turns are exact; anything that turns off the grid becomes 'outside the wafer' (0).
     """
-    raw = np.asarray(raw)
-    h, w = raw.shape
-    y, x = np.meshgrid(np.linspace(-1, 1, size), np.linspace(-1, 1, size), indexing="ij")
-    t = np.deg2rad(angle)
-    from_y, from_x = np.cos(t) * y - np.sin(t) * x, np.sin(t) * y + np.cos(t) * x
-    rows = np.floor((from_y + 1) / 2 * (h - 1) + 0.5).astype(int)
-    cols = np.floor((from_x + 1) / 2 * (w - 1) + 0.5).astype(int)
-    inside = (rows >= 0) & (rows < h) & (cols >= 0) & (cols < w)
-    out = np.zeros((size, size), dtype=raw.dtype)
-    out[inside] = raw[rows[inside], cols[inside]]
-    return out
+    return ndimage.rotate(image, angle, order=0, reshape=False, cval=0)
 
 
 def shift_map(image, dy, dx):
