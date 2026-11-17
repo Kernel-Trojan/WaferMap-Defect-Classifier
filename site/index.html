@@ -18,7 +18,7 @@
     <a href="#problem">Problem</a><a href="#data">Data</a><a href="#split">Split</a><a href="#prep">Prep</a>
     <a href="#baselines">Baselines</a><a href="#method">Method</a><a href="#testing">Testing</a><a href="#validation">Validation</a>
     <a href="#main-content">Results</a><a href="#robustness">Robustness</a><a href="#errors">Errors</a><a href="#cnn">vs CNN</a>
-    <a href="#denoise">Denoise</a><a href="#real-fab">Real fab</a><a href="#limits">Limits</a><a href="#run">Run it</a><a href="#team">Team</a><a href="#ai">AI use</a>
+    <a href="#denoise">Denoise</a><a href="#real-fab">Real fab</a><a href="#limits">Limits</a><a href="#run">Run it</a><a href="#team">Team</a><a href="#ai">AI use</a><a href="#citations">Citations</a>
   </nav>
   <button type="button" class="menu-btn" id="menu-btn" aria-expanded="false" aria-controls="toplinks">Sections</button>
   <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
@@ -1588,19 +1588,75 @@ pip install -r requirements.txt</code></pre><button type="button" class="copy">C
   </div>
 </section>
 
+<section class="sec" id="citations" aria-labelledby="citations-title">
+  <p class="sec-no">S19 · Citations</p>
+  <h2 id="citations-title">Citations</h2>
+  <p class="short"><strong>The data, papers, software and other material this project used.</strong></p>
+
+  <div class="prose">
+    <h3>Data</h3>
+    <ol>
+      <li>M.-J. Wu, J.-S. R. Jang and J.-L. Chen, “Wafer Map Failure Pattern Recognition and Similarity Ranking for
+        Large-Scale Data Sets,” <em>IEEE Transactions on Semiconductor Manufacturing</em>, vol. 28, no. 1, pp. 1–12,
+        2015. <a class="ext" href="https://doi.org/10.1109/TSM.2014.2364237">doi:10.1109/TSM.2014.2364237</a></li>
+      <li>WM-811K wafer map dataset (<code>LSWMD.pkl</code>), Kaggle mirror by qingyi.
+        <a class="ext" href="https://www.kaggle.com/datasets/qingyi/wm811k-wafer-map">kaggle.com/datasets/qingyi/wm811k-wafer-map</a></li>
+    </ol>
+
+    <h3>Method paper</h3>
+    <ol>
+      <li>A. Coates, A. Ng and H. Lee, “An Analysis of Single-Layer Networks in Unsupervised Feature Learning,”
+        <em>AISTATS</em>, 2011. Our recipe: k-means filters on ZCA-whitened patches, triangle activation, region
+        pooling. <a class="ext" href="https://proceedings.mlr.press/v15/coates11a.html">proceedings.mlr.press/v15/coates11a</a></li>
+    </ol>
+
+    <h3>Software</h3>
+    <ol>
+      <li>Python 3. <a class="ext" href="https://www.python.org">python.org</a></li>
+      <li>NumPy 2.5.5. <a class="ext" href="https://numpy.org">numpy.org</a></li>
+      <li>SciPy 1.18.1. <a class="ext" href="https://scipy.org">scipy.org</a></li>
+      <li>pandas 3.1.1. <a class="ext" href="https://pandas.pydata.org">pandas.pydata.org</a></li>
+      <li>scikit-learn 1.9.1. <a class="ext" href="https://scikit-learn.org">scikit-learn.org</a></li>
+      <li>Matplotlib 3.11.2. <a class="ext" href="https://matplotlib.org">matplotlib.org</a></li>
+      <li>PyTorch 2.14.1, used only for the reference CNN. <a class="ext" href="https://pytorch.org">pytorch.org</a></li>
+      <li>joblib 1.6.0 and threadpoolctl 3.8.0 (parallel work inside scikit-learn).
+        <a class="ext" href="https://joblib.readthedocs.io">joblib.readthedocs.io</a> ·
+        <a class="ext" href="https://github.com/joblib/threadpoolctl">github.com/joblib/threadpoolctl</a></li>
+      <li>Kaggle API 2.2.5, to download the dataset. <a class="ext" href="https://github.com/Kaggle/kaggle-api">github.com/Kaggle/kaggle-api</a></li>
+      <li>GitHub Pages and GitHub Actions (<code>actions/checkout</code>, <code>configure-pages</code>,
+        <code>upload-pages-artifact</code>, <code>deploy-pages</code>) to publish this site.</li>
+    </ol>
+
+    <h3>AI tools</h3>
+    <ol>
+      <li>Claude Code, Anthropic, with Claude Fable 5.2 and Claude Opus 5.5. <a class="ext" href="https://www.anthropic.com/claude-code">anthropic.com/claude-code</a></li>
+      <li>ChatGPT, OpenAI, with GPT 5.6 Luna. <a class="ext" href="https://chatgpt.com">chatgpt.com</a></li>
+    </ol>
+    <p>What each one did is in <a href="#ai">S18</a>.</p>
+
+    <h3>Photos (S1)</h3>
+    <ol>
+      <li>Naotake Murayama, “Wafer with Pentium chips,” <a class="ext" href="https://creativecommons.org/licenses/by/2.0">CC BY 2.0</a>,
+        <a class="ext" href="https://commons.wikimedia.org/wiki/File:Wafer_with_Pentium_chips.jpg">Wikimedia Commons</a> (cropped).</li>
+      <li>O. Usher, UCL Mathematical and Physical Sciences, “Cleanroom – photolithography lab,”
+        <a class="ext" href="https://creativecommons.org/licenses/by/2.0">CC BY 2.0</a>,
+        <a class="ext" href="https://commons.wikimedia.org/wiki/File:Cleanroom_-_photolithography_lab_(9148360385).jpg">Wikimedia Commons</a> (cropped).</li>
+      <li>Ixnayonthetimmay, “Wafer prober service configuration,”
+        <a class="ext" href="https://creativecommons.org/licenses/by-sa/3.0">CC BY-SA 3.0</a>,
+        <a class="ext" href="https://commons.wikimedia.org/wiki/File:Wafer_prober_service_configuration.jpg">Wikimedia Commons</a> (cropped).</li>
+      <li>Jasycheng, “CIS probe card,” <a class="ext" href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</a>,
+        <a class="ext" href="https://commons.wikimedia.org/wiki/File:CIS_probe_card.jpg">Wikimedia Commons</a> (resized).</li>
+    </ol>
+  </div>
+</section>
+
 </main>
 
 <footer class="footer">
   <div class="footer-inner">
-    <p><strong>About this page.</strong> Every result number on it is read from <code>site/data/</code>, which
-      <code>python main.py site-data</code> writes from the repository's <code>experiments/</code> and
-      <code>splits/</code> files; source chips link to them. Wafers in S1 to S4 are training wafers; test wafers appear
-      only in the results sections. Static page: no server, no tracking, no external requests. The four reference
-      photos in S1 come from Wikimedia Commons under their own licences, credited under each photo.</p>
-    <p id="selfcheck" class="selfcheck"></p>
-    <p><a id="footer-repo" class="ext" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier">Source code on GitHub</a> · built from commit <a data-commit="head" class="commit" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/7ee79dc">7ee79dc</a> ·
-      Data: <a href="https://www.kaggle.com/datasets/qingyi/wm811k-wafer-map">WM-811K</a>, Wu, Jang and Chen, IEEE
-      Transactions on Semiconductor Manufacturing, 2015. Only a small sample of maps is included here.</p>
+    <p>© 2026 Satyam Suman and Rishi Kumar. Code and website released under the
+      <a class="ext" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/main/LICENSE">MIT License</a>.
+      The WM-811K data and the photos in S1 keep their own licences (see <a href="#citations">Citations</a>).</p>
   </div>
 </footer>
 

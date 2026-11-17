@@ -408,7 +408,7 @@ WaferMap-Defect-Classifier/
 
 ## The website
 
-`site/` is a static page with no server and no build step. It walks through the project in 18 sections with
+`site/` is a static page with no server and no build step. It walks through the project in 19 sections with
 interactive figures:
 
 - a preprocessing stepper
