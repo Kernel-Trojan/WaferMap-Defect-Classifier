@@ -1,4 +1,4 @@
-# AI use disclosure
+# AI Usage Disclosure
 
 ## Tools used
 
