@@ -1,7 +1,7 @@
 {
   "meta": {
     "repo": "https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier",
-    "commit": "dc48688",
+    "commit": "7ee79dc",
     "new_files": [
       "experiments/site_stats.json",
       "scripts/11_site_data.py"

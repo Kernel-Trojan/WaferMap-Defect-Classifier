@@ -71,8 +71,9 @@ the middle, a thin scratch) is a clue to what went wrong. We built a small model
 
 [WM-811K](https://www.kaggle.com/datasets/qingyi/wm811k-wafer-map) (`LSWMD.pkl`, about 2 GB): 811,457 real
 wafer maps from Wu, Jang and Chen, *"Wafer Map Failure Pattern Recognition and Similarity Ranking for
-Large-Scale Data Sets"*, IEEE Transactions on Semiconductor Manufacturing, 2015. We don't redistribute it;
-see [Getting started](#getting-started) for how to download it.
+Large-Scale Data Sets"*, IEEE Transactions on Semiconductor Manufacturing, 2015. We don't ship the full file;
+see [Getting started](#getting-started) for how to download it. The website includes a small sample of its maps
+(`site/data/wafers.js`) so its examples work.
 
 **Columns we use:** `waferMap` (the only model input), `failureType` (the label) and `lotName` (only for
 splitting). `waferIndex`, `dieSize` and the dataset's own `trianTestLabel` column (typo in the original) are not
@@ -165,6 +166,16 @@ every filter at four rotations.
 - **All tuning happened on validation.** The final recipe was written to `experiments/final_config.json` and
   pushed (commit `9bc9713`, 04:39) *before* the test set was loaded; the results came after (`f4d5c32`,
   04:46).
+- **The recipe is the default we planned, not the validation winner.** Five options scored higher on validation
+  (our recipe 0.753). We kept the plan, and this is why:
+
+  | Option | Validation macro-F1 | Why we didn't switch |
+  |---|---|---|
+  | Median cleanup instead of isolated-die | 0.784 | Erases 1-die-thin scratches: Scratch F1 0.373 -> 0.337 |
+  | K = 64 filters | 0.778 | Twice the features, so twice the model the browser runs |
+  | Random filters | 0.769 | Same score range; k-means filters can be shown and read on the site |
+  | 64×64 maps | 0.766 | Four times the pixels per wafer for the browser model |
+  | k-means + random forest | 0.761 | 300 trees are much bigger and slower to run in the browser than one linear layer |
 - **The test set was scored once.** `scripts/05_final_test.py` refuses to run a second time. Two later looks
   are labelled post-hoc: the median-cleanup comparison and the textbook CNN.
 - **Error bars** come from redrawing whole test lots 1,000 times (seed 42), because wafers from one lot look
@@ -196,6 +207,8 @@ field in the JSON/CSV files next to it.
 - **Data needs (validation):** with 5% of the training lots we score 0.681, already above logistic regression on
   pixels trained on all of them (0.579).
 - **Validation and test agree:** 0.753 on validation, 0.765 on test.
+- **Calibration:** our ECE of 0.025 is at the test set's class mix. The random forest has no calibration step,
+  so its 0.240 is not a like-for-like contest. At real fab shares calibration would need checking again.
 - **Denoise trade-off (post-hoc):** median cleanup would score +0.033 higher (+0.016 to +0.051), but Scratch
   recall falls from 0.711 to 0.596.
 
@@ -222,6 +235,9 @@ Figures are in `experiments/figures/`.
 - **Label noise and unlabeled data.** 3 identical maps carry conflicting labels, and 79% of WM-811K has no label,
   so we can't say how the model behaves on that majority.
 - **One dataset, one source.** We don't claim it works on another fab's maps without checking.
+- **The calibration step ignores lots.** Temperature scaling picks its setting with ordinary 3-fold splits
+  inside the training data (`src/models.py`), not lot-grouped ones. This only touches the calibration numbers,
+  not F1, and fixing it would mean refitting the frozen recipe, so we leave it as stated.
 - **The learning curve's 1% point** contains no Near-full wafers, so it understates that size.
 
 ---
@@ -392,7 +408,7 @@ WaferMap-Defect-Classifier/
 
 ## The website
 
-`site/` is a static page with no server and no build step. It walks through the project in 17 sections with
+`site/` is a static page with no server and no build step. It walks through the project in 18 sections with
 interactive figures:
 
 - a preprocessing stepper
