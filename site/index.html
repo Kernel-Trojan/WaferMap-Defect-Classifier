@@ -703,8 +703,8 @@ folds = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)</code></
     <summary>Want the details? Questions you might have</summary>
     <dl class="faq">
       <dt>Why compare against logistic regression on pixels if the forest is stronger?</dt>
-      <dd>Because it's the same classifier we use at the end. The gap between them shows exactly what our features
-        add (S9: <span data-key="test.gaps.logistic.0" data-f="sf3">+0.205</span> on test).</dd>
+      <dd>Because it's the same classifier we use at the end. The gap between them shows what our whole pipeline (cleanup, summary
+        numbers and features) adds over raw pixels (S9: <span data-key="test.gaps.logistic.0" data-f="sf3">+0.205</span> on test).</dd>
     </dl>
   </details>
 </section>
@@ -802,7 +802,8 @@ folds = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)</code></
       <span data-key="validation.P3-kmeans-logreg.macro_f1" data-f="f3">0.753</span>. Three reasons we still picked logistic
       regression: (1) it gives honest probabilities after temperature scaling, which a factory needs to decide what to
       send to a human; (2) it's tiny (9 × 162 weights), so it runs in a browser, as you'll see below; (3) it's the same
-      classifier as the B2 baseline, so the comparison isolates what our features add.</p>
+      classifier as the B2 baseline. The B2 models see raw pixels only, without our cleanup, wafer mask or two
+      summary numbers, so that gap measures our whole pipeline over raw pixels, not the filters alone.</p>
   </div>
 
   <figure class="figure" id="draw-figure">
@@ -1023,7 +1024,8 @@ folds = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)</code></
     <h3 class="fig-title">We beat both pixel baselines, tie with the SVM, and lose to the CNN</h3>
     <div id="gap-plot" class="ichart"></div>
     <figcaption>Our macro-F1 minus each other model's, on the same 1,000 lot redraws. A range that stays clear of the
-      zero line is a real gap; one that crosses it is a tie.
+      zero line is a real gap; one that crosses it is a tie. The pixel baselines see raw pixels only (no cleanup, mask
+      or summary numbers), so their gaps measure our whole pipeline, not the filters alone.
       <a class="src" data-src="experiments/final_test.json" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/blob/7ee79dc/experiments/final_test.json">final_test.json · final_logreg_minus</a></figcaption>
   </figure>
 
@@ -1036,10 +1038,11 @@ folds = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)</code></
   </figure>
 
   <figure class="figure">
-    <h3 class="fig-title">Our confidence numbers are honest; the forest's aren't</h3>
+    <h3 class="fig-title">After temperature scaling, our confidence numbers are honest</h3>
     <div id="ece-bars" class="ichart"></div>
     <figcaption>Expected calibration error on the test set (lower is better). When our model says 90% sure, it's
-      right about 90% of the time. The forest says 90% when it's often much less sure than that.</figcaption>
+      right about 90% of the time. The forest has no calibration step, so this is not a like-for-like contest: it
+      shows what our calibration step buys, not that a forest can't be calibrated.</figcaption>
   </figure>
 
   <div class="takeaway">
@@ -1048,7 +1051,7 @@ folds = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)</code></
       <li><strong>We beat every simple baseline</strong>, and the gap to the best one
         (<span data-key="test.gaps.forest.0" data-f="sf3">+0.056</span>) is well clear of luck.</li>
       <li><strong>Our probabilities are honest</strong> (ECE <span data-key="test.models.ours.ece.0" data-f="f3">0.025</span>;
-        the forest's is about ten times worse).</li>
+        the uncalibrated forest's is about ten times worse).</li>
       <li><strong>Easy patterns are solved, thin ones aren't.</strong> Edge-Ring
         <span data-key="test.per_class.ours.Edge-Ring.f1" data-f="f2">0.96</span>, but Scratch
         <span data-key="test.per_class.ours.Scratch.f1" data-f="f2">0.39</span> and Loc
@@ -1187,7 +1190,9 @@ folds = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)</code></
   <div class="prose">
     <p>To see how far a no-backprop model gets, we also trained a plain textbook CNN with backprop: 3 × (3×3
       convolution + ReLU + max-pool) with 16, 32 and 64 channels, a 128-unit dense layer, dropout 0.3, Adam, class
-      weights. Same inputs (fail map + mask), same split. Its number of training rounds
+      weights. Same inputs (fail map + mask), same split, and no rotated or shifted training copies. With turned
+      copies in training the CNN would likely lose less when wafers are turned or slid, so our steadier behaviour
+      is partly a training choice on its side. Its number of training rounds
       (<span data-key="cnn.epoch_picked" data-f="int">29</span> of a maximum <span data-key="cnn.max_epochs" data-f="int">30</span>)
       was picked on the validation folds, and it was scored on the test set once.</p>
   </div>
@@ -1488,26 +1493,26 @@ pip install -r requirements.txt</code></pre><button type="button" class="copy">C
       <h3>Satyam Suman</h3>
       <dl>
         <dt>What I built</dt><dd><ul>
-          <li><strong>The project skeleton and the data loader :</strong> I set up the repository and initialised the directory layout. I also wrote the loader
-            for <code>LSWMD.pkl</code>, an old Python 2 pickle containing our dataset that newer pandas can't open and a verifier that checks the file loads with the expected row counts.
+          <li><strong>The project skeleton and the data loader:</strong> I set up the repository and initialised the directory layout. I also wrote the loader
+            for <code>LSWMD.pkl</code>, an old Python 2 pickle containing our dataset that newer pandas can't open, and a verifier that checks the file loads with the expected row counts.
             <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/f27e8eb">f27e8eb</a> <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/6ca01ec">6ca01ec</a></li>
-          <li><strong>The audit and the split :</strong> The script <code>01_audit.py</code> creates our <span data-key="audit.subset_rows" data-f="int">35,519</span>-wafer sample
-            from <span data-key="audit.source_rows" data-f="int">811,457</span> wafer maps from the dataset. The script <code>02_freeze_splits.py</code> joins like wafers or wafer having an identical map
-            into <span data-key="split.groups" data-f="int">10,119</span> groups, does 80:20 train-test split, and does Stratified K-Fold Cross Validation with 5 folds. It also stores naive random folds, helping us identify that <span data-key="leak.validation_naive" data-f="pct">86%</span> of validation wafers would have had another wafer from the same lot in the training data. <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/18f9272">18f9272</a></li>
-          <li><strong>The baselines :</strong> The script <code>03_baselines.py</code>, contains simple models which I built before our actual method. The lowest validation performance was achieved by the majority class (<span data-key="validation.B0-majority.macro_f1" data-f="f3">0.049</span>) and the highest was a flat random forest on raw pixels (<span data-key="validation.B2-flat-random-forest.macro_f1" data-f="f3">0.696</span>). The baselines were used to set a bar for our method to beat.
+          <li><strong>The audit and the split:</strong> The script <code>01_audit.py</code> creates our <span data-key="audit.subset_rows" data-f="int">35,519</span>-wafer sample
+            from <span data-key="audit.source_rows" data-f="int">811,457</span> wafer maps from the dataset. The script <code>02_freeze_splits.py</code> joins wafers that share a lot or an identical map
+            into <span data-key="split.groups" data-f="int">10,119</span> groups, makes an 80:20 train-test split, and runs stratified, lot-grouped cross-validation with 5 folds. It also stores naive random folds, helping us identify that <span data-key="leak.validation_naive" data-f="pct">86%</span> of validation wafers would have had another wafer from the same lot in the training data. <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/18f9272">18f9272</a></li>
+          <li><strong>The baselines:</strong> The script <code>03_baselines.py</code> contains simple models which I built before our actual method. The lowest validation performance was achieved by the majority class (<span data-key="validation.B0-majority.macro_f1" data-f="f3">0.049</span>) and the highest was a flat random forest on raw pixels (<span data-key="validation.B2-flat-random-forest.macro_f1" data-f="f3">0.696</span>). The baselines were used to set a bar for our method to beat.
             <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/2159c61">2159c61</a></li>
-          <li><strong>The CNN-style pipeline :</strong> I started with lonely-die cleanup and nearest-die resizing in the script (<code>src/preprocessing.py</code>). It also included patch sampling, ZCA whitening, k-means / PCA / random filters, the
+          <li><strong>The CNN-style pipeline:</strong> I started with lonely-die cleanup and nearest-die resizing in the script (<code>src/preprocessing.py</code>). It also included patch sampling, ZCA whitening, k-means / PCA / random filters, the
             triangle activation, trying every filter at 4 turns and ring pooling in the script (<code>src/features.py</code>) and finally the
             calibrated logistic regression in the script (<code>src/models.py</code>).
             <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/237ad40">237ad40</a></li>
-          <li><strong>Validation approach :</strong>I tried 3 filter types × 4 classifiers grid and the 7
+          <li><strong>Validation approach:</strong> I tried a 3 filter types × 4 classifiers grid and the 7
             one-change ablations in the scripts (<code>03_pipeline.py</code>, <code>04_tuning.py</code>), all on 5 lot-grouped folds to find the best validation approach.
             <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/237ad40">237ad40</a></li>
-          <li><strong>Publishing :</strong> I shipped the GitHub Pages workflow that deploys <code>site/</code>.
+          <li><strong>Publishing:</strong> I shipped the GitHub Pages workflow that deploys <code>site/</code>.
             <a class="src" href="https://github.com/Kernel-Trojan/WaferMap-Defect-Classifier/commit/1fc8031">1fc8031</a></li>
         </ul></dd>
-        <dt>One key choice I made and why</dt><dd><strong>Ring pooling and four rotations :</strong> Wafer defects are related to their distance from the centre and not to the direction in which the wafer is oriented. 
-          So, instead of dividing the wafer into a fixed grid, we tried to group filter responses into concentric rings and tested each filter at four rotations (0°, 90°, 180° and 270°). Validation results confirmed that both choices improved performance. Replacing rings with quadrants reduced macro-F1 from <span data-key="validation.P3-kmeans-logreg.macro_f1" data-f="f3">0.753</span> to <span data-key="validation.P3-ablation-quadrant-pooling.macro_f1" data-f="f3">0.665</span>, while using only one filter orientation reduced it to <span data-key="validation.P3-ablation-no-rotation.macro_f1" data-f="f3">0.715</span>. The improvement was particularly noticeable for Center and Scratch defects. We also confirmed that the model was rotation-invariant on the test set, with macro-F1 remaining almost unchanged at <span data-key="rotation.ours.0" data-f="f3">0.765</span> and <span data-key="rotation.ours.6" data-f="f3">0.766</span> after a 90° rotation.
+        <dt>One key choice I made and why</dt><dd><strong>Ring pooling and four rotations:</strong> Wafer defects are related to their distance from the centre and not to the direction in which the wafer is oriented. 
+          So, instead of dividing the wafer into a fixed grid, we tried to group filter responses into concentric rings and tested each filter at four rotations (0°, 90°, 180° and 270°). Validation results confirmed that both choices improved performance. Replacing rings with quadrants reduced macro-F1 from <span data-key="validation.P3-kmeans-logreg.macro_f1" data-f="f3">0.753</span> to <span data-key="validation.P3-ablation-quadrant-pooling.macro_f1" data-f="f3">0.665</span>, while using only one filter orientation reduced it to <span data-key="validation.P3-ablation-no-rotation.macro_f1" data-f="f3">0.715</span>. The improvement was particularly noticeable for Center and Scratch defects. We also confirmed that the model is nearly rotation-invariant at quarter turns on the test set, with macro-F1 almost unchanged at <span data-key="rotation.ours.0" data-f="f3">0.765</span> and <span data-key="rotation.ours.6" data-f="f3">0.766</span> after a 90° rotation.
           </dd>
         <dt>How I evaluated it</dt><dd>
           All experiments were evaluated only on 5 lot-grouped validation folds, never on the test set. 

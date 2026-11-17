@@ -197,7 +197,9 @@ field in the JSON/CSV files next to it.
 | Textbook CNN with backprop (post-hoc) | 0.829 (0.812 to 0.843) | 0.884 | n/a |
 
 - **Against the baselines:** +0.205 over logistic on pixels (+0.179 to +0.229) and +0.056 over the random
-  forest (+0.038 to +0.074). The SVM is a tie (+0.006, range −0.008 to +0.020).
+  forest (+0.038 to +0.074). The SVM is a tie (+0.006, range −0.008 to +0.020). The pixel baselines see raw
+  pixels only (no cleanup, mask or summary numbers), so these gaps measure our whole pipeline, not the filters
+  alone.
 - **Per class (F1):** Edge-Ring 0.964 · Near-full 0.897 · Random 0.893 · Center 0.864 · none 0.844 ·
   Edge-Loc 0.783 · Donut 0.695 · Loc 0.560 · Scratch 0.388.
 - **Rotation:** 0.764 to 0.767 at every quarter turn. In-between angles dip, to 0.673 at 45°. The pixel models
@@ -228,7 +230,7 @@ Figures are in `experiments/figures/`.
 - **Scratch and Loc are weak** (F1 0.388 and 0.560). Through 5×5 windows a short scratch and a small blob look
   alike, and they are each other's most common mistake.
 - **The learned filters aren't why it works.** Random 5×5 filters beat our k-means filters on validation by
-  +0.015 (+0.007 to +0.024), in all 5 folds. The strength is the structure: sliding filters, four turns, ring
+  +0.015 (+0.007 to +0.023), in all 5 folds. The strength is the structure: sliding filters, four turns, ring
   pooling.
 - **Rotation is nearly exact at quarter turns, not perfectly exact.** Whitening learns an average patch that
   isn't rotation-symmetric, so a 90° turn moves the score by about 0.002.

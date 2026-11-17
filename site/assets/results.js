@@ -16,7 +16,7 @@
   (() => {
     const g = T.gaps;
     const rows = [
-      ['logistic', 'B2 logistic on pixels', 'clear win: this is what our features add'],
+      ['logistic', 'B2 logistic on pixels', 'clear win: our whole pipeline over raw pixels'],
       ['forest', 'B2 random forest', 'clear win over the best baseline'],
       ['svm', 'Linear SVM on our features', 'a tie: the range crosses 0'],
       ['cnn', 'Textbook CNN (post-hoc)', 'clear loss'],
