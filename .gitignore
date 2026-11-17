@@ -4,3 +4,4 @@ __pycache__/
 data/LSWMD.pkl
 data/project_subset.pkl
 data/final_models.joblib
+data/reference_cnn.pt
